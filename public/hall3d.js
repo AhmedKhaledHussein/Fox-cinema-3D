@@ -1,6 +1,6 @@
-/* FOX CINEMA — self-contained WebGL2 procedural cinema.
-   No external runtime libraries, textures beyond user-provided video-derived assets.
-   A real perspective 3D geometry scene, not a flat screenshot or CSS projection. */
+/* FOX CINEMA — procedural WebGL auditorium.
+   The hall is real procedural geometry; all category artwork is original,
+   movie posters are external promotional imagery with a safe fallback. */
 import {layout, getSeat, getMovie} from './catalog.js';
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 function shader(gl,type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;}
@@ -83,6 +83,11 @@ export function sceneMesh(lowDetail=false){
    box(side*14.40,6.5,z,.66,1.96,1.13,[.022,.023,.027]);
    box(side*14.02,6.5,z,.16,1.55,.95,[.06,.06,.066]);
   }
+  // Architectural linear accent illumination: thin warm light embedded in acoustic bays.
+  for(let z=2.8;z<43;z+=7.9){
+    box(side*14.12,2.35,z,.085,1.55,.12,[.68,.16,.18]);
+    box(side*14.11,2.39,z,.035,1.39,.05,[.98,.35,.34]);
+  }
   // Red wall sconce-like soft boxes and ground-level exit markers.
   for(let z of [3,19,35]){box(side*14.25,9.6,z,.21,.34,1.0,[.68,.16,.15]);}
   box(side*13.45,1.42,34,.12,.45,1.05,[.08,.45,.19]);
@@ -131,6 +136,11 @@ export function sceneMesh(lowDetail=false){
   pillow(x,y+1.63,z+.37,width*.43,.225,.16,upper,12,6);
   // Headrest seam and edge reflect soft projection light.
   rod([x-width*.36,y+1.47,z+.512],[x+width*.36,y+1.47,z+.512],.012,piping,5);
+  // Slim stitched leather edge follows the contoured upholstery instead of polygonal diamonds.
+  if(!lowDetail){
+   for(const side of [-1,1])rod([x+side*width*.415,y+.77,z+.48],[x+side*width*.415,y+1.42,z+.49],.008,piping,6);
+   rod([x-width*.29,y+.74,z+.55],[x+width*.29,y+.74,z+.55],.007,piping,6);
+  }
   // Sculpted seat base and forward leg support.
   pillow(x,y+.62,z-.25,width*.47,.155,.47,leather,12,6);
   pillow(x,y+.47,z-.66,width*.43,.14,.18,shell,9,5);
@@ -160,9 +170,9 @@ void main(){
  float screen=max(dot(n,projector),0.);
  float red=max(dot(n,normalize(vec3(-.7,.16,.5))),0.);
  float hemi=.45+.27*n.y;
- vec3 lighting=vec3(.34,.36,.41)*hemi+vec3(.40,.38,.34)*warm*.65+vec3(.30,.40,.53)*screen*.35+vec3(.14,.045,.055)*red;
+ vec3 lighting=vec3(.39,.40,.43)*hemi+vec3(.43,.40,.34)*warm*.58+vec3(.35,.45,.58)*screen*.43+vec3(.18,.055,.067)*red;
  vec3 reflected=normalize(ceiling+view);
- float spec=pow(max(dot(n,reflected),0.),42.)*.15+pow(max(dot(n,normalize(projector+view)),0.),16.)*.035;
+ float spec=pow(max(dot(n,reflected),0.),42.)*.20+pow(max(dot(n,normalize(projector+view)),0.),16.)*.045;
  vec3 c=vColor*lighting+vec3(.69,.71,.75)*spec;
  float fog=clamp((vDist-22.)/72.,0.,.27);
  c=mix(c,vec3(.018,.018,.021),fog);
@@ -181,7 +191,9 @@ export class Theater3D{
  this.maxBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.maxBuf);gl.bufferData(gl.ARRAY_BUFFER,maxQuad,gl.STATIC_DRAW);
  const leftMaxQuad=texturedQuad([[-14.36,5.2,7.45],[-14.36,5.2,2.55],[-14.36,9.3,2.55],[-14.36,9.3,7.45]]);this.leftMaxBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.leftMaxBuf);gl.bufferData(gl.ARRAY_BUFFER,leftMaxQuad,gl.STATIC_DRAW);
  const obj=makeScreenCanvas();this.screenCanvas=obj.canvas;this.screenCtx=obj.ctx;this.drawScreen(null);this.screenTex=createTexture(gl,obj.canvas);this.maxTex=createTexture(gl,makeMaxCanvas());
- const image=new Image();image.decoding='async';this.artImage=image;image.onload=()=>{if(this.disposed)return;this.drawScreen(image);this.uploadScreen();};image.onerror=()=>{console.warn('FOX cinema screen poster could not load');};image.src='/assets/'+(this.movie.poster||'poster-godzilla.jpg');
+ const image=new Image();image.decoding='async';this.artImage=image;image.onload=()=>{if(this.disposed)return;try{this.drawScreen(image);this.uploadScreen();}catch(err){console.warn('Cinema poster texture unavailable:',err);this.drawScreen(null);this.uploadScreen();}};image.onerror=()=>{console.warn('FOX cinema screen poster could not load');};image.crossOrigin='anonymous';
+ const url=this.movie.posterUrl||'/assets/poster-fallback.svg';
+ image.src=/^https?:\/\//.test(url)?`https://wsrv.nl/?url=${encodeURIComponent(url)}&w=900&fit=inside&output=jpg`:url;
  this.attachInput();this.setSeat(this.selected,false);this.resize();this.raf=requestAnimationFrame(t=>this.frame(t));onReady?.();
  }
  // Movie artwork is painted at 2048px into a real emissive screen texture.
@@ -230,7 +242,7 @@ export class Theater3D{
   this.yaw=0;this.pitch=0;this.lastSeat=id;
  }
 
- resize(){const rect=this.canvas.getBoundingClientRect();const dpr=Math.min(window.devicePixelRatio||1,2.2);const w=Math.max(1,Math.floor(rect.width*dpr));const h=Math.max(1,Math.floor(rect.height*dpr));if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;this.gl.viewport(0,0,w,h);}}
+ resize(){const rect=this.canvas.getBoundingClientRect();const dpr=Math.min(window.devicePixelRatio||1,window.innerWidth<800?1.8:2.35);const w=Math.max(1,Math.floor(rect.width*dpr));const h=Math.max(1,Math.floor(rect.height*dpr));if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;this.gl.viewport(0,0,w,h);}}
  attachInput(){this.down=e=>{if(e.button!==0)return;this.pointer=[e.clientX,e.clientY];this.canvas.setPointerCapture(e.pointerId)};this.move=e=>{if(!this.pointer)return;const dx=e.clientX-this.pointer[0],dy=e.clientY-this.pointer[1];this.yaw=clamp(this.yaw+dx*.003,-.75,.75);this.pitch=clamp(this.pitch-dy*.003,-.5,.5);this.pointer=[e.clientX,e.clientY]};this.up=()=>this.pointer=null;this.wheel=e=>{e.preventDefault();this.fov=clamp(this.fov+e.deltaY*.021,45,100)};this.canvas.addEventListener('pointerdown',this.down);this.canvas.addEventListener('pointermove',this.move);this.canvas.addEventListener('pointerup',this.up);this.canvas.addEventListener('pointercancel',this.up);this.canvas.addEventListener('wheel',this.wheel,{passive:false});this.onResize=()=>this.resize();window.addEventListener('resize',this.onResize);}
  reset(){this.yaw=0;this.pitch=0;if(!this.tween)this.fov=74}
  frame(t){if(this.disposed)return;const gl=this.gl;this.resize();const dt=clamp((t-this.clock)/1000,.001,.05);this.clock=t;
