@@ -1,0 +1,1 @@
+The posters and theater/offer images in this folder were cropped or derived from the screen recording supplied by the user. They are reference assets, not a recovery of original asset files from the removed Vercel deployment. Additional image use and redistribution may require permission from relevant third-party rights holders.
