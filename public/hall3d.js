@@ -171,7 +171,7 @@ void main(){
 const texV=`attribute vec3 aPosition;attribute vec2 aUV;uniform mat4 uMVP;varying vec2 vUV;void main(){gl_Position=uMVP*vec4(aPosition,1.);vUV=aUV;}`;
 const texF=`precision mediump float;varying vec2 vUV;uniform sampler2D uTexture;void main(){gl_FragColor=texture2D(uTexture,vUV);}`;
 export class Theater3D{
- constructor(canvas,onReady,movieId='godzilla-minus-zero'){this.movie=getMovie(movieId);this.canvas=canvas;this.disposed=false;this.selected='G9';this.yaw=0;this.pitch=0;this.fov=74;this.pointer=null;this.currentEye=null;this.clock=performance.now();this.dirty=true;
+ constructor(canvas,onReady,movieId='godzilla-minus-zero'){this.movie=getMovie(movieId);this.canvas=canvas;this.disposed=false;this.selected='G9';this.yaw=0;this.pitch=0;this.fov=74;this.pointer=null;this.currentEye=null;this.currentTarget=null;this.clock=performance.now();this.dirty=true;this.tween=null;this.entryFlight=true;this.lastSeat=null;
  const gl=canvas.getContext('webgl2',{alpha:false,antialias:true,powerPreference:'high-performance'})||canvas.getContext('webgl',{alpha:false,antialias:true,powerPreference:'high-performance'});if(!gl)throw Error('WebGL is not supported by this browser.');this.gl=gl;
  this.colorProg=program(gl,shaderV,shaderF);this.texProg=program(gl,texV,texF);
  this.colorBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.colorBuf);const compact=window.innerWidth<720||(navigator.deviceMemory&&navigator.deviceMemory<=4);const mesh=sceneMesh(Boolean(compact));gl.bufferData(gl.ARRAY_BUFFER,mesh,gl.STATIC_DRAW);this.colorCount=mesh.length/9;
@@ -181,12 +181,12 @@ export class Theater3D{
  this.maxBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.maxBuf);gl.bufferData(gl.ARRAY_BUFFER,maxQuad,gl.STATIC_DRAW);
  const leftMaxQuad=texturedQuad([[-14.36,5.2,7.45],[-14.36,5.2,2.55],[-14.36,9.3,2.55],[-14.36,9.3,7.45]]);this.leftMaxBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.leftMaxBuf);gl.bufferData(gl.ARRAY_BUFFER,leftMaxQuad,gl.STATIC_DRAW);
  const obj=makeScreenCanvas();this.screenCanvas=obj.canvas;this.screenCtx=obj.ctx;this.drawScreen(null);this.screenTex=createTexture(gl,obj.canvas);this.maxTex=createTexture(gl,makeMaxCanvas());
- const image=new Image();this.artImage=image;image.onload=()=>{if(this.disposed)return;this.drawScreen(image);this.uploadScreen();};image.onerror=()=>{console.warn('FOX cinema screen poster could not load');};image.src='/assets/'+(this.movie.poster||'poster-godzilla.jpg');
- this.attachInput();this.setSeat(this.selected,true);this.resize();this.raf=requestAnimationFrame(t=>this.frame(t));onReady?.();
+ const image=new Image();image.decoding='async';this.artImage=image;image.onload=()=>{if(this.disposed)return;this.drawScreen(image);this.uploadScreen();};image.onerror=()=>{console.warn('FOX cinema screen poster could not load');};image.src='/assets/'+(this.movie.poster||'poster-godzilla.jpg');
+ this.attachInput();this.setSeat(this.selected,false);this.resize();this.raf=requestAnimationFrame(t=>this.frame(t));onReady?.();
  }
  // Movie artwork is painted at 2048px into a real emissive screen texture.
  // The gradient and title exist BEFORE Image.onload, so the cinema never shows an empty blue rectangle.
- drawScreen(image){const {canvas:c,ctx:x}=this;const W=c.width,H=c.height;
+ drawScreen(image){const c=this.screenCanvas,x=this.screenCtx;if(!c||!x)throw Error('Cinema screen drawing context was not initialized.');const W=c.width,H=c.height;
   x.save();x.clearRect(0,0,W,H);
   const bg=x.createLinearGradient(0,0,W,H);bg.addColorStop(0,'#0c1823');bg.addColorStop(.52,'#122d46');bg.addColorStop(1,'#10121b');x.fillStyle=bg;x.fillRect(0,0,W,H);
   if(image&&image.complete&&image.naturalWidth){
@@ -210,11 +210,46 @@ export class Theater3D{
   x.restore();
  }
  uploadScreen(){const gl=this.gl;gl.bindTexture(gl.TEXTURE_2D,this.screenTex);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,this.screenCanvas);}
- setSeat(id,immediate=false){const s=getSeat(id);if(!s)return;this.selected=id;const eye=[s.x,s.y+2.15,s.z+.12];this.destEye=eye;if(!this.currentEye||immediate)this.currentEye=[...eye];this.yaw=0;this.pitch=0;}
+ // The source recording enters the auditorium from a high, wide overview before
+ // easing towards the selected seat. Changing seats uses a shorter seated fly-through.
+ setSeat(id,immediate=false){
+  const seat=getSeat(id);if(!seat)return;
+  const prefersReduced=typeof window.matchMedia==='function'&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const eye=[seat.x,seat.y+2.15,seat.z+.12],look=[0,6.4,-3.94];
+  this.selected=id;this.destEye=eye;this.destTarget=look;
+  if(!this.currentEye){
+   this.currentEye=[0,21.8,36.5];this.currentTarget=[0,4.6,8.5];this.fov=82;
+  }
+  if(immediate||prefersReduced){
+   this.currentEye=[...eye];this.currentTarget=[...look];this.tween=null;this.entryFlight=false;
+  }else{
+   this.tween={fromEye:[...this.currentEye],fromTarget:[...this.currentTarget],toEye:eye,toTarget:look,
+    started:performance.now(),duration:this.entryFlight?1650:1050,fromFov:this.fov,toFov:74,
+    isEntrance:this.entryFlight};
+  }
+  this.yaw=0;this.pitch=0;this.lastSeat=id;
+ }
+
  resize(){const rect=this.canvas.getBoundingClientRect();const dpr=Math.min(window.devicePixelRatio||1,2.2);const w=Math.max(1,Math.floor(rect.width*dpr));const h=Math.max(1,Math.floor(rect.height*dpr));if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;this.gl.viewport(0,0,w,h);}}
  attachInput(){this.down=e=>{if(e.button!==0)return;this.pointer=[e.clientX,e.clientY];this.canvas.setPointerCapture(e.pointerId)};this.move=e=>{if(!this.pointer)return;const dx=e.clientX-this.pointer[0],dy=e.clientY-this.pointer[1];this.yaw=clamp(this.yaw+dx*.003,-.75,.75);this.pitch=clamp(this.pitch-dy*.003,-.5,.5);this.pointer=[e.clientX,e.clientY]};this.up=()=>this.pointer=null;this.wheel=e=>{e.preventDefault();this.fov=clamp(this.fov+e.deltaY*.021,45,100)};this.canvas.addEventListener('pointerdown',this.down);this.canvas.addEventListener('pointermove',this.move);this.canvas.addEventListener('pointerup',this.up);this.canvas.addEventListener('pointercancel',this.up);this.canvas.addEventListener('wheel',this.wheel,{passive:false});this.onResize=()=>this.resize();window.addEventListener('resize',this.onResize);}
- reset(){this.yaw=0;this.pitch=0;this.fov=74}
- frame(t){if(this.disposed)return;const gl=this.gl;this.resize();const dt=clamp((t-this.clock)/1000,.001,.05);this.clock=t;for(let i=0;i<3;i++)this.currentEye[i]+=(this.destEye[i]-this.currentEye[i])*(1-Math.exp(-dt*4.0));const target=[Math.sin(this.yaw)*13,5.6+Math.sin(this.pitch)*13,-4+Math.max(0,1-Math.cos(this.yaw))*6];const view=lookAt(this.currentEye,target),proj=perspective(this.fov*Math.PI/180,this.canvas.width/this.canvas.height,.09,120),mvp=matMul(proj,view);
+ reset(){this.yaw=0;this.pitch=0;if(!this.tween)this.fov=74}
+ frame(t){if(this.disposed)return;const gl=this.gl;this.resize();const dt=clamp((t-this.clock)/1000,.001,.05);this.clock=t;
+ if(this.tween){
+  const tw=this.tween;const progress=clamp((t-tw.started)/tw.duration,0,1);
+  const smooth=progress<.5?4*progress*progress*progress:1-Math.pow(-2*progress+2,3)/2;
+  for(let i=0;i<3;i++){
+   const rise=tw.isEntrance?0:.55*Math.sin(Math.PI*progress);
+   this.currentEye[i]=tw.fromEye[i]+(tw.toEye[i]-tw.fromEye[i])*smooth+(i===1?rise:0);
+   this.currentTarget[i]=tw.fromTarget[i]+(tw.toTarget[i]-tw.fromTarget[i])*smooth;
+  }
+  this.fov=tw.fromFov+(tw.toFov-tw.fromFov)*smooth;
+  if(progress===1){this.tween=null;this.entryFlight=false;}
+ }else{
+  for(let i=0;i<3;i++)this.currentEye[i]+=(this.destEye[i]-this.currentEye[i])*(1-Math.exp(-dt*5));
+ }
+ const center=this.currentTarget||[0,6.4,-3.94];
+ const target=[center[0]+Math.sin(this.yaw)*13,center[1]+Math.sin(this.pitch)*11,center[2]+(1-Math.cos(this.yaw))*7];
+ const view=lookAt(this.currentEye,target),proj=perspective(this.fov*Math.PI/180,this.canvas.width/this.canvas.height,.09,150),mvp=matMul(proj,view);
  gl.clearColor(.01,.011,.014,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
  gl.useProgram(this.colorProg);gl.uniformMatrix4fv(gl.getUniformLocation(this.colorProg,'uMVP'),false,new Float32Array(mvp));gl.uniform3fv(gl.getUniformLocation(this.colorProg,'uEye'),new Float32Array(this.currentEye));gl.bindBuffer(gl.ARRAY_BUFFER,this.colorBuf);const stride=36;for(const [attr,sz,off] of [['aPosition',3,0],['aColor',3,12],['aNormal',3,24]]){let loc=gl.getAttribLocation(this.colorProg,attr);gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,sz,gl.FLOAT,false,stride,off);}gl.drawArrays(gl.TRIANGLES,0,this.colorCount);
  gl.useProgram(this.texProg);gl.uniformMatrix4fv(gl.getUniformLocation(this.texProg,'uMVP'),false,new Float32Array(mvp));const ap=gl.getAttribLocation(this.texProg,'aPosition'),au=gl.getAttribLocation(this.texProg,'aUV');for(let [buf,tex] of [[this.screenBuf,this.screenTex],[this.maxBuf,this.maxTex],[this.leftMaxBuf,this.maxTex]]){gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,20,0);gl.enableVertexAttribArray(au);gl.vertexAttribPointer(au,2,gl.FLOAT,false,20,12);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tex);gl.uniform1i(gl.getUniformLocation(this.texProg,'uTexture'),0);gl.drawArrays(gl.TRIANGLES,0,6);}

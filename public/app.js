@@ -19,7 +19,21 @@ const fee=()=>state.selected.size*15;
 const vat=()=>Math.round((total()+fee())*14)/100;
 const fullTotal=()=>total()+fee()+vat();
 const routeTo=r=>{const h='#/'+r;if(location.hash===h){render();window.scrollTo(0,0)}else location.hash=h};
-let renderer=null,toastTimeout,ticker=null;
+let renderer=null,toastTimeout,ticker=null,heroClock=null;
+function advanceHero(delta=1){
+ if(router()!=='home')return;
+ state.hero=(state.hero+delta+5)%5;
+ const node=document.querySelector('.hero');
+ if(node&&document.createElement){const holder=document.createElement('div');holder.innerHTML=hero();node.replaceWith(holder.firstElementChild);}
+ else render();
+}
+function startHeroClock(){
+ if(heroClock)clearInterval(heroClock);
+ if(typeof document.visibilityState!=='string'||reducedMotion())return;
+ heroClock=setInterval(()=>{if(document.visibilityState==='visible'&&!state.searchOpen&&!state.trailerOpen&&!state.authOpen)advanceHero(1)},6400);
+ if(heroClock?.unref)heroClock.unref();
+}
+
 function toast(text){const box=$('#toast');if(!box)return;box.textContent=text;box.classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>box.classList.remove('visible'),3500)}
 // A static-host fallback keeps navigation and the booking DEMO usable without a Node API.
 // It is localStorage-only and intentionally does NOT promise cross-user inventory locks.
@@ -103,21 +117,36 @@ const reducedMotion=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)').
 function installCinematicMotion(){
  revealObserver?.disconnect();revealObserver=null;
  if(reducedMotion()||!('IntersectionObserver' in window)||router()==='3d')return;
- const nodes=[...document.querySelectorAll('.section-head, .movie-card, .format-card, .offer-card, .cinema-card, .gallery-grid > *, .food-grid > *, .detail-columns > *, .page-heading')];
+ const nodes=[...document.querySelectorAll('.section-head, .movie-card, .format-card, .offer-card, .cinema-card, .gallery-grid > *, .food-grid > *, .detail-columns > *, .page-heading, .food-banner .copy, .detail-stats > div, .show-cinema, .footer-grid > div')];
  if(nodes.length===0)return;
  revealObserver=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){entry.target.classList.add('reveal-visible');revealObserver?.unobserve(entry.target);}}},{rootMargin:'0px 0px -35px 0px',threshold:.07});
  nodes.forEach((node,index)=>{node.classList.add('cinema-reveal');node.style.setProperty('--reveal-delay',`${Math.min(index%5,4)*45}ms`);revealObserver.observe(node);});
 }
+function showRouteBrand(destination){
+ if(reducedMotion()||!(destination.startsWith('movie/')||destination.startsWith('format/')))return;
+ if(!document.body?.appendChild||!document.createElement)return;
+ const old=document.getElementById('foxRouteBrand');old?.remove?.();
+ const splash=document.createElement('div');splash.id='foxRouteBrand';splash.className='fox-route-brand';
+ splash.setAttribute('aria-hidden','true');splash.textContent='FOX';document.body.appendChild(splash);
+ setTimeout(()=>splash.remove?.(),680);
+}
 function renderRoute(){
- const update=()=>{render();window.scrollTo({top:0,behavior:'instant'});if(router().startsWith('seats/'))loadTaken();};
+ const destination=router();
+ const enteringTheater=destination==='3d';
+ const exitingTheater=!!document.querySelector('.theater-page');
+ const update=()=>{render();if(document.documentElement.dataset)document.documentElement.dataset.foxRoute=enteringTheater?'theater':'page';window.scrollTo({top:0,behavior:'instant'});if(router().startsWith('seats/'))loadTaken();};
+ // WebGL has an independent cinematic camera flight. Don't snapshot its canvas
+ // into a view transition: Safari can capture an empty GPU framebuffer.
+ if(enteringTheater||exitingTheater){update();return;}
+ showRouteBrand(destination);
  if(typeof document.startViewTransition==='function'&&!reducedMotion()){
   try{document.startViewTransition(update);return;}catch(error){console.warn('View transition not available:',error);}
  }
  update();const main=document.querySelector('#app > main, #app .theater-page');
  if(main&&!reducedMotion()&&main.animate)main.animate([{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'translateY(0)'}],{duration:460,easing:'cubic-bezier(.2,.85,.22,1)'});
 }
-function render(){const r=router();if(renderer){renderer.dispose();renderer=null;}if(ticker){clearInterval(ticker);ticker=null;}
- let html;if(r==='home')html=home();else if(r==='movies')html=moviesPage();else if(r==='cinemas')html=cinemasPage();else if(r.startsWith('cinema/'))html=cinemaPage(r.slice(7));else if(r==='formats')html=formatsPage();else if(r.startsWith('format/'))html=formatPage(r.slice(7));else if(r==='offers')html=offersPage();else if(r.startsWith('offer/'))html=offerPage(r.slice(6));else if(r==='food')html=foodPage();else if(r.startsWith('movie/'))html=movieDetailPage(r.slice(6));else if(r.startsWith('seats/'))html=seatPage(r.slice(6));else if(r==='3d')html=theaterPage();else if(r==='checkout')html=checkoutPage();else if(r==='ticket')html=ticketPage();else html=home();site().innerHTML=html+overlays();document.documentElement.lang=state.lang;document.documentElement.dir=state.lang==='ar'?'rtl':'ltr';if(r==='3d')requestAnimationFrame(()=>{const canvas=$('#theaterCanvas');if(!canvas)return;try{renderer=new Theater3D(canvas,undefined,state.movieId);renderer.setSeat(state.viewer,true)}catch(e){console.error(e);canvas.insertAdjacentHTML('afterend',`<div class="webgl-fallback">WebGL unavailable: ${esc(e.message)}. <button class="btn btn-white" data-action="back-to-seats">Back to seats</button></div>`);toast('3D rendering is unavailable on this device.')}});if(r==='checkout'){ticker=setInterval(updateTimer,1000);updateTimer()}if(state.searchOpen)$('#globalSearch')?.focus();requestAnimationFrame(installCinematicMotion);}
+function render(){const r=router();if(heroClock){clearInterval(heroClock);heroClock=null;}if(renderer){renderer.dispose();renderer=null;}if(ticker){clearInterval(ticker);ticker=null;}
+ let html;if(r==='home')html=home();else if(r==='movies')html=moviesPage();else if(r==='cinemas')html=cinemasPage();else if(r.startsWith('cinema/'))html=cinemaPage(r.slice(7));else if(r==='formats')html=formatsPage();else if(r.startsWith('format/'))html=formatPage(r.slice(7));else if(r==='offers')html=offersPage();else if(r.startsWith('offer/'))html=offerPage(r.slice(6));else if(r==='food')html=foodPage();else if(r.startsWith('movie/'))html=movieDetailPage(r.slice(6));else if(r.startsWith('seats/'))html=seatPage(r.slice(6));else if(r==='3d')html=theaterPage();else if(r==='checkout')html=checkoutPage();else if(r==='ticket')html=ticketPage();else html=home();site().innerHTML=html+overlays();document.documentElement.lang=state.lang;document.documentElement.dir=state.lang==='ar'?'rtl':'ltr';if(r==='3d')requestAnimationFrame(()=>{const canvas=$('#theaterCanvas');if(!canvas)return;try{renderer=new Theater3D(canvas,undefined,state.movieId);renderer.setSeat(state.viewer,false)}catch(e){console.error(e);canvas.insertAdjacentHTML('afterend',`<div class="webgl-fallback">Cinema preview couldn't start: ${esc(e.message)}. <button class="btn btn-white" data-action="back-to-seats">Back to seats</button></div>`);toast('3D rendering is unavailable on this device.')}});if(r==='checkout'){ticker=setInterval(updateTimer,1000);updateTimer()}if(state.searchOpen)$('#globalSearch')?.focus();requestAnimationFrame(installCinematicMotion);if(r==='home')startHeroClock();}
 function updateTimer(){const el=$('#timer');if(!el)return;const seconds=Math.max(0,Math.floor(((state.expiresAt||Date.now()+600000)-Date.now())/1000));el.textContent=`◷ ${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;el.classList.toggle('warning',seconds<60);if(seconds===0){clearInterval(ticker);toast('Your seats were released. Please select seats again.');state.holdId=null;routeTo('seats/'+state.movieId)}}
 async function loadTaken(){try{const data=await api('/api/seats?show='+encodeURIComponent(showId()));state.taken=new Set(data.taken);if(data.hold?.id){state.holdId=data.hold.id;state.expiresAt=data.hold.expiresAt}}catch(e){state.taken=new Set(defaultTaken);toast('Offline seat data is shown; start the project with node server.js for holds.')}if(router().startsWith('seats/'))render()}
 function startSeats(movieId,cinemaId=null,time=null){state.movieId=movieId;state.cinemaId=cinemaId||state.cinemaId;state.time=time||state.time;state.selected.clear();state.holdId=null;state.expiresAt=null;state.step=1;state.zoom=1;routeTo('seats/'+movieId);loadTaken()}
@@ -142,9 +171,9 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-act
  case 'trailer-close':state.trailerOpen=false;render();break;
  case 'open-movie':if(e.target.closest('a'))break;routeTo('movie/'+id);break;
  case 'book-movie':state.movieId=id;state.cinemaId='city-centre-alexandria';state.dateOffset=2;routeTo('movie/'+id);setTimeout(()=>$('#showtimes')?.scrollIntoView({behavior:'smooth'}),100);break;
- case 'hero-prev':state.hero=(state.hero+4)%5;render();break;
- case 'hero-next':state.hero=(state.hero+1)%5;render();break;
- case 'hero-select':state.hero=Number(el.dataset.index);render();break;
+ case 'hero-prev':advanceHero(-1);startHeroClock();break;
+ case 'hero-next':advanceHero(1);startHeroClock();break;
+ case 'hero-select':advanceHero(Number(el.dataset.index)-state.hero);startHeroClock();break;
  case 'film-mode':state.filmMode=el.dataset.value;render();break;
  case 'select-date':state.dateOffset=Number(el.dataset.offset);render();break;
  case 'detail-cinema':state.cinemaId=id;render();break;
@@ -174,6 +203,13 @@ document.addEventListener('input',e=>{if(e.target.id==='filmQuery'){state.query=
 document.addEventListener('change',e=>{if(e.target.id==='filmGenre')state.genre=e.target.value;if(e.target.id==='filmFormat')state.format=e.target.value;if(e.target.id==='filmLanguage')state.language=e.target.value;if(['filmGenre','filmFormat','filmLanguage'].includes(e.target.id))updateFilmResults();if(e.target.id==='foodCinema')state.foodCinema=e.target.value});
 document.addEventListener('submit',async e=>{if(e.target.id==='authForm')return await authSubmit(e);if(e.target.id==='newsletter'){e.preventDefault();toast('Thanks! Newsletter sign-up is a demo in this reconstruction.')}if(e.target.id==='customerForm'){e.preventDefault();await checkoutNext()}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&(state.searchOpen||state.authOpen||state.trailerOpen)){state.searchOpen=state.authOpen=state.trailerOpen=false;render()}if(e.key==='Enter'&&e.target.matches('.movie-card'))routeTo('movie/'+e.target.dataset.id)});
+let scrollTick=false;
+window.addEventListener('scroll',()=>{
+ if(scrollTick||reducedMotion()||router()!=='home')return;
+ scrollTick=true;requestAnimationFrame(()=>{scrollTick=false;const layer=document.querySelector('.hero-bg');
+ if(layer){const y=Math.min(700,window.scrollY||0);layer.style.setProperty('--fox-parallax-y',`${Math.round(y*.13)}px`);}
+ });
+},{passive:true});
 window.addEventListener('hashchange',()=>{state.searchOpen=state.authOpen=state.trailerOpen=false;renderRoute();});
 try{const response=await api('/api/me');state.account=response.account}catch{}
 if(!location.hash)location.hash='#/home';else{render();if(router().startsWith('seats/'))loadTaken()}

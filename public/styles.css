@@ -67,3 +67,33 @@
   .cinema-reveal{opacity:1;transform:none;filter:none}
 }
 @media(hover:none){.movie-card:hover,.format-card:hover,.offer-card:hover,.cinema-card:hover,.food-card:hover{transform:none}}
+
+/* FOX reference film: hold 2D seating while the auditorium unfolds into a high crane-to-seat flight. */
+@keyframes fox-cinema-portal{0%{opacity:0;clip-path:inset(0 0 100% 0);filter:brightness(.35) blur(9px)}35%{opacity:1;clip-path:inset(0 0 0 0);filter:brightness(.65) blur(2px)}100%{opacity:1;clip-path:inset(0 0 0 0);filter:brightness(1) blur(0)}}
+@keyframes fox-seat-glide{0%{opacity:0;transform:translate3d(0,26px,0) scale(.96)}100%{opacity:1;transform:translate3d(0,0,0) scale(1)}}
+@keyframes fox-cinema-focus{0%{opacity:0;filter:blur(6px)}100%{opacity:1;filter:blur(0)}}
+html[data-fox-route="theater"] .theater-page canvas{animation:fox-cinema-portal 1.65s cubic-bezier(.18,.75,.14,1) both}
+html[data-fox-route="theater"] .theater-page .hud{animation:fox-seat-glide .75s .90s cubic-bezier(.16,1,.3,1) both}
+html[data-fox-route="theater"] .theater-page .seat-view-label{animation:fox-cinema-focus .50s 1s both}
+/* Video reference: restrained layered reveal; stagger labels, titles and cards as they enter viewport. */
+.cinema-reveal{transition-duration:.85s,.85s,.7s;transform:translate3d(0,35px,0) scale(.987);filter:blur(3px)}
+.cinema-reveal.reveal-visible{transform:translate3d(0,0,0) scale(1);filter:blur(0)}
+.gallery-grid img,.food-banner img{transition:transform 1s cubic-bezier(.16,1,.3,1),filter .9s}
+.gallery-grid>div:hover img,.food-banner:hover img{transform:scale(1.055);filter:saturate(1.07)}
+@supports (view-transition-name: none){
+ html[data-fox-route="theater"]::view-transition-old(root){animation-duration:350ms}
+ html[data-fox-route="theater"]::view-transition-new(root){animation-duration:850ms}
+}
+@media(prefers-reduced-motion:reduce){html[data-fox-route="theater"] .theater-page canvas,html[data-fox-route="theater"] .theater-page .hud,html[data-fox-route="theater"] .theater-page .seat-view-label{animation:none!important}}
+
+/* Reference: hero backdrop drifts independently while text/poster reveal. */
+.hero-bg{transform:translate3d(0,var(--fox-parallax-y,0px),0) scale(1.055);will-change:transform}
+@keyframes fox-new-slide-backdrop{from{opacity:.25;filter:blur(35px) brightness(.55);transform:translate3d(0,9px,0) scale(1.12)}to{opacity:1;filter:blur(15px) brightness(.68);transform:translate3d(0,var(--fox-parallax-y,0px),0) scale(1.055)}}
+.hero .hero-bg{animation:fox-new-slide-backdrop .9s cubic-bezier(.16,1,.3,1) both}
+.hero-meter button.active:after{animation-duration:6.4s}
+@media(prefers-reduced-motion:reduce){.hero-bg{transform:none!important;will-change:auto}}
+
+/* The recorded inter-page black FOX interstitial is brief, not a permanent spinner. */
+@keyframes fox-interstitial{0%{opacity:0;transform:scale(1.08);filter:blur(7px)}20%{opacity:1;transform:scale(1);filter:blur(0)}62%{opacity:1}100%{opacity:0;filter:blur(4px)}}
+.fox-route-brand{position:fixed;inset:0;z-index:10000;background:radial-gradient(ellipse at 50% 115%,#260915 0%,#09090b 60%);display:grid;place-items:center;color:#e4e2e5;font:800 clamp(100px,16vw,290px)/1 'DM Sans',Arial,sans-serif;letter-spacing:-.085em;pointer-events:none;animation:fox-interstitial .68s ease both}
+@media(prefers-reduced-motion:reduce){.fox-route-brand{display:none!important}}
