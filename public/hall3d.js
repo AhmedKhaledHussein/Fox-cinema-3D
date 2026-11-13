@@ -103,11 +103,23 @@ export function sceneMesh(lowDetail=false){
    for(let n of [-.37,.37])box(x+n,y+.027,z-.98,.34,.035,.048,[.40,.67,.43]);
   }
  }
+ // Floor-level aisle lighting: restrained mint emergency guides and warm step noses.
+ for(let r=0;r<13;r++){
+  const z=5+r*2.15,y=r*.31;
+  for(const side of [-1,1]){
+   box(side*8.34,y+.06,z-.83,.36,.014,.075,[.39,.76,.53]);
+   box(side*8.34,y+.045,z-.80,.46,.012,.14,[.12,.24,.18]);
+  }
+  for(let x of [-13.4,13.4])box(x,y+.05,z-.86,.18,.065,.16,[.51,.35,.22]);
+ }
  // Stage and cinema screen housing with thin warm silver trim.
  box(0,.54,-2.0,27,1.08,2.65,[.043,.043,.048]);
  box(0,1.13,-2.4,26,.065,.16,[.33,.34,.32]);
  box(0,6.56,-4.47,25.1,10.72,.55,[.11,.125,.14]);
  box(0,6.56,-4.15,23.35,9.66,.11,[.012,.013,.017]);
+ // Matte screen masking and narrow aluminium projection frame.
+ for(let side of [-1,1])box(side*11.83,6.56,-3.92,.14,9.55,.12,[.19,.20,.23]);
+ for(let yy of [1.72,11.41])box(0,yy,-3.91,23.71,.12,.12,[.18,.20,.23]);
  for(let side of [-1,1])box(side*12.98,6.6,-3.8,.52,10.56,.58,[.039,.03,.039]);
  // Brushed steel guardrails; cylindrical geometry creates physically credible specular contours.
  const rail=[.41,.46,.48];
@@ -152,7 +164,19 @@ export function sceneMesh(lowDetail=false){
    if(!lowDetail)ring(px,y+.885,z-.39,.083,[.50,.53,.56]);
    box(px,y+.17,z+.36,.12,.36,.13,[.045,.048,.052]);
   }
-  if(premium){pillow(x,y+.34,z-.82,width*.42,.11,.29,leather,9,5);}
+  if(premium){
+   pillow(x,y+.34,z-.82,width*.42,.11,.29,leather,9,5);
+   // Quilted leather contour, subtle horizontal cross-stitch and lumbar segments.
+   if(!lowDetail){
+    for(let k=0;k<2;k++){
+     const yy=y+1.00+k*.24;
+     rod([x-width*.27,yy,z+.56],[x+width*.27,yy,z+.56],.006,[.170,.174,.19],6);
+    }
+    for(let side of [-1,1]){
+     rod([x+side*width*.37,y+.74,z+.51],[x+side*width*.37,y+1.36,z+.51],.008,[.158,.163,.178],6);
+    }
+   }
+  }
  }
  return new Float32Array(vertices);
 }
@@ -161,22 +185,41 @@ function makeMaxCanvas(){const c=document.createElement('canvas');c.width=1024;c
 function createTexture(gl,canvas){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,canvas);return t}
 function texturedQuad(corners){const [a,b,c,d]=corners;const arr=[];for(const [p,uv] of [[a,[0,0]],[b,[1,0]],[c,[1,1]],[a,[0,0]],[c,[1,1]],[d,[0,1]]])arr.push(...p,...uv);return new Float32Array(arr)}
 const shaderV=`attribute vec3 aPosition;attribute vec3 aColor;attribute vec3 aNormal;uniform mat4 uMVP;uniform vec3 uEye;varying vec3 vColor;varying vec3 vNorm;varying vec3 vWorld;varying float vDist;void main(){gl_Position=uMVP*vec4(aPosition,1.);vColor=aColor;vNorm=aNormal;vWorld=aPosition;vDist=distance(uEye,aPosition);}`;
-const shaderF=`precision highp float;varying vec3 vColor;varying vec3 vNorm;varying vec3 vWorld;varying float vDist;uniform vec3 uEye;
+const shaderF=`precision highp float;
+varying vec3 vColor;varying vec3 vNorm;varying vec3 vWorld;varying float vDist;uniform vec3 uEye;
+float hash31(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453123);}
 void main(){
  vec3 n=normalize(vNorm);vec3 view=normalize(uEye-vWorld);
- vec3 ceiling=normalize(vec3(.22,.90,.32));
- vec3 projector=normalize(vec3(-vWorld.x*.035,.12,-1.));
- float warm=max(dot(n,ceiling),0.);
- float screen=max(dot(n,projector),0.);
- float red=max(dot(n,normalize(vec3(-.7,.16,.5))),0.);
- float hemi=.45+.27*n.y;
- vec3 lighting=vec3(.39,.40,.43)*hemi+vec3(.43,.40,.34)*warm*.58+vec3(.35,.45,.58)*screen*.43+vec3(.18,.055,.067)*red;
- vec3 reflected=normalize(ceiling+view);
- float spec=pow(max(dot(n,reflected),0.),42.)*.20+pow(max(dot(n,normalize(projector+view)),0.),16.)*.045;
- vec3 c=vColor*lighting+vec3(.69,.71,.75)*spec;
- float fog=clamp((vDist-22.)/72.,0.,.27);
- c=mix(c,vec3(.018,.018,.021),fog);
- gl_FragColor=vec4(pow(max(c,0.),vec3(.91)),1.);
+ vec3 lightWarm=normalize(vec3(-.23,.86,.39));
+ vec3 lightScreen=normalize(vec3(-vWorld.x*.027,.23,-1.));
+ vec3 lightSide=normalize(vec3(.80,.19,.47));
+ float warm=max(dot(n,lightWarm),0.0);
+ float projection=max(dot(n,lightScreen),0.0);
+ float accent=max(dot(n,lightSide),0.0);
+ float hemisphere=.59+.25*n.y;
+ // Layered light: silver-white overhead, cool film projection and subtle red sconces.
+ vec3 illumination=vec3(.49,.50,.54)*hemisphere;
+ illumination+=vec3(.52,.44,.36)*pow(warm,.62)*.75;
+ illumination+=vec3(.42,.52,.71)*pow(projection,.8)*.58;
+ illumination+=vec3(.28,.066,.082)*accent*.22;
+ // A gentle falloff towards the rear seats adds depth without swallowing upholstery.
+ illumination*=mix(1.0,.87,clamp((vWorld.z-5.)/46.,0.,1.));
+ vec3 halfWarm=normalize(view+lightWarm);
+ vec3 halfScreen=normalize(view+lightScreen);
+ float spec=pow(max(dot(n,halfWarm),0.),46.)*.31;
+ spec+=pow(max(dot(n,halfScreen),0.),70.)*.30;
+ float fresnel=pow(1.-max(dot(n,view),0.),3.0);
+ float isLeather=step(4.0,vWorld.z)*(1.0-smoothstep(.23,.40,vColor.g))*step(.25,vWorld.y);
+ float grain=(hash31(floor(vWorld*155.))-.5)*.027;
+ vec3 base=vColor*(illumination+grain*isLeather);
+ vec3 shine=vec3(.59,.63,.72)*(spec*(.18+.52*isLeather))+(vec3(.14,.18,.24)*fresnel)*(.14+.3*isLeather);
+ vec3 color=base+shine;
+ float haze=clamp((vDist-26.)/82.,0.,.14);
+ color=mix(color,vec3(.022,.023,.029),haze);
+ // Filmic shoulder and soft gamma preserve shadows with controlled highlights.
+ color=color/(color+vec3(.34));
+ color=pow(max(color,vec3(0.)),vec3(1.1));
+ gl_FragColor=vec4(color,1.);
 }`;
 const texV=`attribute vec3 aPosition;attribute vec2 aUV;uniform mat4 uMVP;varying vec2 vUV;void main(){gl_Position=uMVP*vec4(aPosition,1.);vUV=aUV;}`;
 const texF=`precision mediump float;varying vec2 vUV;uniform sampler2D uTexture;void main(){gl_FragColor=texture2D(uTexture,vUV);}`;
@@ -191,9 +234,28 @@ export class Theater3D{
  this.maxBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.maxBuf);gl.bufferData(gl.ARRAY_BUFFER,maxQuad,gl.STATIC_DRAW);
  const leftMaxQuad=texturedQuad([[-14.36,5.2,7.45],[-14.36,5.2,2.55],[-14.36,9.3,2.55],[-14.36,9.3,7.45]]);this.leftMaxBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,this.leftMaxBuf);gl.bufferData(gl.ARRAY_BUFFER,leftMaxQuad,gl.STATIC_DRAW);
  const obj=makeScreenCanvas();this.screenCanvas=obj.canvas;this.screenCtx=obj.ctx;this.drawScreen(null);this.screenTex=createTexture(gl,obj.canvas);this.maxTex=createTexture(gl,makeMaxCanvas());
- const image=new Image();image.decoding='async';this.artImage=image;image.onload=()=>{if(this.disposed)return;try{this.drawScreen(image);this.uploadScreen();}catch(err){console.warn('Cinema poster texture unavailable:',err);this.drawScreen(null);this.uploadScreen();}};image.onerror=()=>{console.warn('FOX cinema screen poster could not load');};image.crossOrigin='anonymous';
- const url=this.movie.posterUrl||'/assets/poster-fallback.svg';
- image.src=/^https?:\/\//.test(url)?`https://wsrv.nl/?url=${encodeURIComponent(url)}&w=900&fit=inside&output=jpg`:url;
+ // The cinematic projection has a LOCAL first paint even when third-party
+ // imagery is inaccessible. Official poster art can then replace it asynchronously.
+ const localArt=`/assets/posters/${encodeURIComponent(this.movie.id)}.webp`;
+ const localImage=new Image();localImage.decoding='async';localImage.crossOrigin='anonymous';
+ localImage.onload=()=>{if(this.disposed||this.hasOfficialScreen)return;
+  try{this.drawScreen(localImage);this.uploadScreen();}catch(error){console.warn('Local screen art unavailable',error);}};
+ localImage.src=localArt;this.artImage=localImage;
+ const source=this.movie.posterUrl;
+ if(source){
+  const tries=[`https://wsrv.nl/?url=${encodeURIComponent(source)}&w=1200&fit=inside&output=jpg`,
+   `https://images.weserv.nl/?url=${encodeURIComponent(source.replace(/^https?:\/\//,''))}&w=1200`];
+  let nextIndex=0;
+  const next=()=>{
+   if(this.disposed||nextIndex>=tries.length)return;
+   const image=new Image();image.decoding='async';image.crossOrigin='anonymous';
+   image.onload=()=>{if(this.disposed)return;try{this.drawScreen(image);this.uploadScreen();this.hasOfficialScreen=true;this.artImage=image;}
+    catch(error){console.warn('Cinema image host denied texture upload:',error);next();}};
+   image.onerror=()=>{if(!this.disposed)next();};
+   image.src=tries[nextIndex++];
+  };
+  next();
+ }
  this.attachInput();this.setSeat(this.selected,false);this.resize();this.raf=requestAnimationFrame(t=>this.frame(t));onReady?.();
  }
  // Movie artwork is painted at 2048px into a real emissive screen texture.

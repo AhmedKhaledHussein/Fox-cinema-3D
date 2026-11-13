@@ -33,7 +33,7 @@ test('WebGL theater initializes and paints the screen instead of throwing undefi
   assert.ok(graphics.calls.saved>=1,'the screen context is used');
   assert.equal(graphics.calls.saved,graphics.calls.restored,'all drawing states restored');
   assert.ok(graphics.calls.uploaded>=2,'screen and MAX textures uploaded');
-  assert.match(viewer.artImage.url,/^https:\/\/wsrv\.nl\/\?url=/,'movie artwork loads through a CORS-compatible image URL');
+  assert.match(viewer.artImage.url,/^\/assets\/posters\/godzilla-minus-zero\.webp$/,'movie-specific fallback artwork loads locally first');
   viewer.artImage.complete=true;viewer.artImage.naturalWidth=600;viewer.artImage.naturalHeight=900;
   viewer.artImage.onload();
   assert.ok(graphics.calls.drawn>=2,'poster is composited on theater screen');

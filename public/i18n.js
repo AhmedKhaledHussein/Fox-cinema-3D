@@ -1,6 +1,11 @@
 // Original hand-maintained bilingual UI dictionary. No machine translation or screenshots.
 export const genreArabic={Drama:'دراما',Action:'أكشن',Comedy:'كوميديا',Romance:'رومانسي',Horror:'رعب',Animation:'أنيميشن',Fantasy:'فانتازيا','Sci-Fi':'خيال علمي',Thriller:'إثارة',Adventure:'مغامرات',Crime:'جريمة'};
 export const dict={
+'© 2026 FOX CINEMA · Curated demonstration':'© ٢٠٢٦ فوكس سينما · عرض تجريبي',
+'Artwork credits per film · No real tickets or payments':'حقوق الصور لأصحابها · لا توجد تذاكر أو مدفوعات حقيقية',
+'Promotional art where available · Demo preview':'صور دعائية عند توفرها · عرض تجريبي',
+'Arabic':'العربية','English':'الإنجليزية','Japanese':'اليابانية',
+'COMING SOON':'قريباً',
 'FOX CINEMA · EGYPT':'فوكس سينما · مصر','NOW SHOWING · MAX · 4DX':'يعرض الآن · MAX · 4DX',
 'Now showing':'يعرض الآن','Now Showing':'يعرض الآن','NOW SHOWING':'يعرض الآن','COMING SOON':'قريباً','Coming soon':'قريباً','COMING SOON':'قريباً',
 'MOVIES':'الأفلام','CINEMAS':'السينمات','WAYS TO WATCH':'طرق المشاهدة','SPECIAL DEALS':'عروض خاصة','OFFERS':'العروض',
