@@ -1,0 +1,1 @@
+The local demo creates fox-db.json automatically on first launch. The file stores demonstration accounts, seat holds, and test bookings; it is excluded from git. Do not use file persistence as a production multi-instance database. Replace it with Postgres and a payment provider before accepting real money.

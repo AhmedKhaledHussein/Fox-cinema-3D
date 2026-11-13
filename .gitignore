@@ -1,0 +1,4 @@
+node_modules/
+data/fox-db.json
+*.log
+.DS_Store

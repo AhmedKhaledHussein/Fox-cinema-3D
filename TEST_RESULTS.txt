@@ -1,0 +1,62 @@
+
+> fox-cinema-recreated@1.0.0 test
+> node --test tests/*.test.js
+
+TAP version 13
+# Subtest: Health and static pages load
+ok 1 - Health and static pages load
+  ---
+  duration_ms: 156.08418
+  type: 'test'
+  ...
+# Subtest: Real seat hold conflict, expiry metadata and confirmed ticket
+ok 2 - Real seat hold conflict, expiry metadata and confirmed ticket
+  ---
+  duration_ms: 28.835416
+  type: 'test'
+  ...
+# Subtest: Invalid seat and invalid contact rejected
+ok 3 - Invalid seat and invalid contact rejected
+  ---
+  duration_ms: 2.71947
+  type: 'test'
+  ...
+# Subtest: Registration login and password validation
+ok 4 - Registration login and password validation
+  ---
+  duration_ms: 133.653618
+  type: 'test'
+  ...
+# Subtest: Home has navbar, hero, formats, five posters and footer
+ok 5 - Home has navbar, hero, formats, five posters and footer
+  ---
+  duration_ms: 1.682437
+  type: 'test'
+  ...
+# Subtest: Movie pages, cinemas, offers, formats and food all render
+ok 6 - Movie pages, cinemas, offers, formats and food all render
+  ---
+  duration_ms: 6.005114
+  type: 'test'
+  ...
+# Subtest: Seat map renders row M27, correct stage, and 3D surface
+ok 7 - Seat map renders row M27, correct stage, and 3D surface
+  ---
+  duration_ms: 10.017464
+  type: 'test'
+  ...
+# Subtest: Checkout wizard and sample ticket route render without errors
+ok 8 - Checkout wizard and sample ticket route render without errors
+  ---
+  duration_ms: 0.880758
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 404.540957
