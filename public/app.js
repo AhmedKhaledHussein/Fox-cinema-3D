@@ -6,6 +6,24 @@ import {castMarkup,castLoading} from './cast-ui.js';
 import {seatAudioProfile} from './seat-audio.js';
 const $=selector=>document.querySelector(selector);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const lyonArabicHeads={
+ 'الآن':['arabic-now',1.075],
+ 'المشاهدة':['watch',3.377],
+ 'في السينما':['cinema',2.177],
+ 'الأفلام':['movies',1.373],
+ 'المسلسلات':['series',4.076],
+ 'عربية':['arabic',1.715],
+ 'والشخصيات':['characters',3.486]
+};
+function styleArabicDisplayWords(){
+ if(state.lang!=='ar')return;
+ document.querySelectorAll('.section-head h2 em,.page-heading em,.cast-heading h2 em').forEach(el=>{
+  const match=lyonArabicHeads[el.textContent.trim()];if(!match)return;
+  el.classList.add('arabic-lyon-display');
+  el.style.setProperty('--lyon-image',`url('/assets/lyon-${match[0]}.svg')`);
+  el.style.setProperty('--lyon-ratio',String(match[1]));
+ });
+}
 const state={catalogueUpdated:null,catalogueCount:0,trailerLoading:false,trailerError:'',lang:(typeof localStorage!=='undefined'&&localStorage.getItem('fox-language')==='ar'?'ar':'en'),hero:1,filmMode:'now',query:'',genre:'',format:'',language:'',movieId:'godzilla-minus-zero',cinemaId:'city-centre-alexandria',detailCinemaId:'all',detailMovieId:null,dateOffset:2,time:'21:45',screenFormat:'Standard',theaterMuted:true,hudOpen:false,selected:new Set(),taken:new Set(defaultTaken),zoom:1,viewer:'G9',holdId:null,expiresAt:null,bookingId:null,ticket:null,step:1,checkoutContact:{email:'',firstName:'',lastName:'',phone:'',marketing:false},foodCinema:'mall-of-egypt',foodCategory:'All',cart:{},account:null,navOpen:false,authMode:'login',searchOpen:false,authOpen:false,trailerOpen:false};
 const tr={
  en:{movies:'Movies',cinemas:'Cinemas',ways:'Ways to Watch',offers:'Offers',food:'Food & Drinks',signin:'Sign in',home:'Home',showing:'Now showing',coming:'Coming soon',watch:'Ways to watch',our:'Our cinemas',order:'Order your snacks',ahead:'ahead',seeall:'See all',book:'Book tickets',trailer:'Trailer',search:'Search movies, cast, genres…',screen:'SCREEN',continue:'Continue',view3d:'View in 3D',back:'Back',standard:'Standard',regular:'Regular',premium:'Premium',taken:'Taken',selected:'Selected',summary:'Summary',details:'Details',payment:'Payment',formEmail:'Email address',firstName:'First name',surname:'Surname',mobile:'Mobile number',ready:'Ready to book?',total:'Total',change:'Change seats'},
@@ -308,7 +326,7 @@ function renderRoute(){
  if(main&&!reducedMotion()&&main.animate)main.animate([{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'translateY(0)'}],{duration:460,easing:'cubic-bezier(.2,.85,.22,1)'});
 }
 function render(){const r=router();if(!r.startsWith('movie/'))state.detailMovieId=null;if(heroClock){clearInterval(heroClock);heroClock=null;}if(renderer){renderer.dispose();renderer=null;}if(ticker){clearInterval(ticker);ticker=null;}
- let html;if(r==='home')html=home();else if(r==='movies')html=moviesPage();else if(r==='cinemas')html=cinemasPage();else if(r.startsWith('cinema/'))html=cinemaPage(r.slice(7));else if(r==='formats')html=formatsPage();else if(r.startsWith('format/'))html=formatPage(r.slice(7));else if(r==='offers')html=offersPage();else if(r.startsWith('offer/'))html=offerPage(r.slice(6));else if(r==='food')html=foodPage();else if(r.startsWith('movie/'))html=movieDetailPage(r.slice(6));else if(r.startsWith('seats/'))html=seatPage(r.slice(6));else if(r==='3d')html=theaterPage();else if(r==='checkout')html=checkoutPage();else if(r==='ticket')html=ticketPage();else html=home();site().innerHTML=html+overlays();document.documentElement.lang=state.lang;document.documentElement.dir=state.lang==='ar'?'rtl':'ltr';localizeUI(site(),state.lang);hydrateFilmPosters(site(),true);if(r.startsWith('movie/'))hydrateCastDetails();if(r==='3d')requestAnimationFrame(async()=>{
+ let html;if(r==='home')html=home();else if(r==='movies')html=moviesPage();else if(r==='cinemas')html=cinemasPage();else if(r.startsWith('cinema/'))html=cinemaPage(r.slice(7));else if(r==='formats')html=formatsPage();else if(r.startsWith('format/'))html=formatPage(r.slice(7));else if(r==='offers')html=offersPage();else if(r.startsWith('offer/'))html=offerPage(r.slice(6));else if(r==='food')html=foodPage();else if(r.startsWith('movie/'))html=movieDetailPage(r.slice(6));else if(r.startsWith('seats/'))html=seatPage(r.slice(6));else if(r==='3d')html=theaterPage();else if(r==='checkout')html=checkoutPage();else if(r==='ticket')html=ticketPage();else html=home();site().innerHTML=html+overlays();document.documentElement.lang=state.lang;document.documentElement.dir=state.lang==='ar'?'rtl':'ltr';localizeUI(site(),state.lang);styleArabicDisplayWords();hydrateFilmPosters(site(),true);if(r.startsWith('movie/'))hydrateCastDetails();if(r==='3d')requestAnimationFrame(async()=>{
  const canvas=$('#theaterCanvas');if(!canvas||router()!=='3d')return;
  const overlay=document.createElement('div');overlay.className='theater-loading';overlay.textContent=state.lang==='ar'?'بنجهّز القاعة السينمائية...':'Preparing cinematic auditorium…';canvas.parentElement.appendChild(overlay);
  try{

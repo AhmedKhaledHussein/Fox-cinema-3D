@@ -16,3 +16,10 @@ test('Arabic NOW headline art is isolated and text stays accessible',()=>{
  assert.match(css,/lyon-arabic-now\.svg/);
  assert.match(art,/aria-label="الآن"/);
 });
+
+test('Decorative Lyon Arabic assets are applied to highlighted Arabic headings only',()=>{
+ assert.match(app,/function styleArabicDisplayWords\(\)/);
+ assert.match(app,/styleArabicDisplayWords\(\);hydrateFilmPosters/);
+ for(const word of ['الآن','المشاهدة','الأفلام','المسلسلات','والشخصيات'])assert.ok(app.includes(word));
+ assert.match(css,/arabic-lyon-display::after/);
+});

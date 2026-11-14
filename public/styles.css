@@ -529,3 +529,20 @@ html[data-fox-route="theater"] .theater-page .seat-view-label{animation:fox-cine
  [dir=rtl] :is(.section h2,.page-heading) em.arabic-now-lyon {width:auto;height:auto;color:CanvasText!important}
  [dir=rtl] :is(.section h2,.page-heading) em.arabic-now-lyon::after {display:none}
 }
+
+/* V17.1: Arabic editorial accents drawn in the user-provided Lyon style.
+   Single-phrase vector assets only; the proprietary font binary is not hosted. */
+[dir=rtl] :is(.section h2,.page-heading,.cast-heading h2) em.arabic-lyon-display{
+ position:relative!important;display:inline-block!important;
+ width:calc(var(--lyon-ratio,1) * .88em)!important;height:.88em!important;
+ vertical-align:-.06em;line-height:1!important;white-space:nowrap!important;
+ font-style:normal!important;color:transparent!important;overflow:visible;
+}
+[dir=rtl] :is(.section h2,.page-heading,.cast-heading h2) em.arabic-lyon-display::after{
+ content:''!important;position:absolute!important;inset:0!important;display:block!important;
+ background:var(--lyon-image) center / contain no-repeat!important;pointer-events:none!important;
+}
+@media (forced-colors:active){
+ [dir=rtl] :is(.section h2,.page-heading,.cast-heading h2) em.arabic-lyon-display{width:auto!important;height:auto!important;color:CanvasText!important}
+ [dir=rtl] :is(.section h2,.page-heading,.cast-heading h2) em.arabic-lyon-display::after{display:none!important}
+}
