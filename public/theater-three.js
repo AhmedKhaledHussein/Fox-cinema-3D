@@ -4,6 +4,7 @@
  */
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
 import {getMovie,getSeat,layout} from './catalog.js';
+import {screenProfile,normalizeScreenFormat,trailerEmbedUrl} from './theater-presets.js';
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 const reduced=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches||false;
 const v=(x,y,z)=>new THREE.Vector3(x,y,z);
@@ -30,16 +31,28 @@ function panelTexture(){
 }
 function box(scene,w,h,d,material,x,y,z){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);o.position.set(x,y,z);o.receiveShadow=true;scene.add(o);return o;}
 function pipe(scene,start,end,radius,material,sides=10){const a=new THREE.Vector3(...start),b=new THREE.Vector3(...end);const d=b.clone().sub(a);const o=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,d.length(),sides),material);o.position.copy(a.clone().add(b).multiplyScalar(.5));o.quaternion.setFromUnitVectors(v(0,1,0),d.normalize());scene.add(o);return o;}
-function signTexture(){const c=document.createElement('canvas');c.width=1024;c.height=512;const x=c.getContext('2d');x.fillStyle='#0f1118';x.fillRect(0,0,1024,512);x.strokeStyle='#ea786b';x.lineWidth=20;x.strokeRect(19,19,986,474);x.textAlign='center';x.textBaseline='middle';x.fillStyle='#f1897b';x.font='900 230px Arial';x.fillText('MAX',512,257);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
+function signTexture(format='MAX',accent='#ef897a'){const c=document.createElement('canvas');c.width=1024;c.height=512;const x=c.getContext('2d');x.fillStyle='#0f1118';x.fillRect(0,0,1024,512);x.strokeStyle=accent;x.lineWidth=20;x.strokeRect(19,19,986,474);x.textAlign='center';x.textBaseline='middle';x.fillStyle=accent;x.font=`900 ${format.length>5?125:format.length>4?175:format.length>3?210:230}px Arial`;x.fillText(format,512,257);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
 function pillTexture(){const c=document.createElement('canvas');c.width=128;c.height=128;const x=c.getContext('2d');x.fillStyle='#161619';x.fillRect(0,0,128,128);x.fillStyle='#eac5a0';x.beginPath();x.arc(64,64,32,0,Math.PI*2);x.fill();const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
+/** Sculptured upholstery shell: beveled front/back with a consistent rectangular
+ * silhouette, replacing the balloon-like sphere used by the earlier demo. */
+function upholsteredPad(low=false){
+ const r=.35,shape=new THREE.Shape();
+ shape.moveTo(-1+r,-1);shape.lineTo(1-r,-1);
+ shape.quadraticCurveTo(1,-1,1,-1+r);shape.lineTo(1,1-r);
+ shape.quadraticCurveTo(1,1,1-r,1);shape.lineTo(-1+r,1);
+ shape.quadraticCurveTo(-1,1,-1,1-r);shape.lineTo(-1,-1+r);
+ shape.quadraticCurveTo(-1,-1,-1+r,-1);
+ const geo=new THREE.ExtrudeGeometry(shape,{depth:1.45,steps:1,bevelEnabled:true,bevelThickness:.12,bevelSize:.09,bevelSegments:low?2:3,curveSegments:low?3:6});
+ geo.translate(0,0,-.725);geo.computeVertexNormals();return geo;
+}
 function createSeatInstances(scene,low=false){
- const sphere=new THREE.SphereGeometry(1,low?12:22,low?9:16);
+ const sphere=upholsteredPad(low);
  const cylinder=new THREE.CylinderGeometry(1,1,1,low?9:15);
  const parts=[
-  {name:'back-shell',geo:sphere,pos:[0,1.09,.30],scale:[.50,.77,.27]},
+  {name:'back-shell',geo:sphere,pos:[0,1.09,.30],scale:[.49,.75,.29]},
   {name:'back-inset',geo:sphere,pos:[0,1.08,.48],scale:[.43,.60,.095]},
-  {name:'headrest',geo:sphere,pos:[0,1.63,.39],scale:[.45,.235,.19]},
-  {name:'seat',geo:sphere,pos:[0,.56,-.24],scale:[.48,.17,.47]},
+  {name:'headrest',geo:sphere,pos:[0,1.67,.37],scale:[.44,.215,.20]},
+  {name:'seat',geo:sphere,pos:[0,.56,-.24],scale:[.47,.17,.46]},
   {name:'front',geo:sphere,pos:[0,.44,-.63],scale:[.44,.105,.21]},
   {name:'left-arm',geo:sphere,pos:[-.58,.77,-.1],scale:[.17,.13,.51]},
   {name:'right-arm',geo:sphere,pos:[.58,.77,-.1],scale:[.17,.13,.51]},
@@ -99,24 +112,24 @@ function homography(q,W,H){
  const [a,b,c,d,e,f,g,h]=eq.map(z=>z[1]);return `matrix3d(${a/W},${d/W},0,${g/W},${b/H},${e/H},0,${h/H},0,0,1,0,${c},${f},0,1)`;
 }
 export class TheaterThree{
- constructor(canvas,onReady,movieId='godzilla-minus-zero'){
-  this.canvas=canvas;this.movie=getMovie(movieId);this.disposed=false;this.selected='G9';this.yaw=0;this.pitch=0;this.fov=58;this.currentEye=v(0,20.8,38);this.currentTarget=v(0,4.7,9);
+ constructor(canvas,onReady,movieId='godzilla-minus-zero',selectedFormat='Standard'){
+  this.canvas=canvas;this.movie=getMovie(movieId);this.showFormat=normalizeScreenFormat(selectedFormat);this.profile=screenProfile(this.showFormat);this.disposed=false;this.soundEnabled=false;this.trailerActive=false;this.selected='G9';this.yaw=0;this.pitch=0;this.fov=54;this.currentEye=v(0,20.8,38);this.currentTarget=v(0,4.7,9);
   this.destEye=this.currentEye.clone();this.destTarget=this.currentTarget.clone();this.entry=true;this.pointer=null;this.tween=null;
   const isMobile=window.innerWidth<760,low=isMobile||(navigator.deviceMemory&&navigator.deviceMemory<=4);
   this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
-  this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.34;
+  this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.41;
   this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,low?1.45:1.9));this.renderer.setClearColor(0x050507);
   this.scene=new THREE.Scene();this.scene.background=new THREE.Color(0x060608);this.scene.fog=new THREE.FogExp2(0x09090d,.007);
-  this.camera=new THREE.PerspectiveCamera(58,1,.16,110);
-  this.scene.add(new THREE.HemisphereLight(0x94aed1,0x411c26,1.12));this.scene.add(new THREE.AmbientLight(0x98a0b5,.25));
+  this.camera=new THREE.PerspectiveCamera(54,1,.16,110);
+  this.scene.add(new THREE.HemisphereLight(0x9cb1cc,0x51232c,1.13));this.scene.add(new THREE.AmbientLight(0x98a0b5,.25));
   this.buildAuditorium(low);createSeatInstances(this.scene,low);
   this.buildScreen();this.loadPoster();
   this.setupOverlay();this.attachInput();this.setSeat('G9');this.resize();
   this.frame=this.frame.bind(this);this.raf=requestAnimationFrame(this.frame);onReady?.();
  }
  buildAuditorium(low){const s=this.scene;
-  const wall=mat(0x651b27,.92),fabric=new THREE.MeshStandardMaterial({map:panelTexture(),color:0xe4d3d6,roughness:.91});
-  const floor=mat(0x19181b,.94),trim=mat(0xc57768,.38,.35),edge=mat(0xa4b4be,.27,.78),black=mat(0x0c0e12,.83),carpet=mat(0x121316,.96);
+  const wall=mat(0x711e2b,.86),fabric=new THREE.MeshStandardMaterial({map:panelTexture(),color:0xe4d3d6,roughness:.91});
+  const floor=mat(0x15181b,.92),trim=mat(0xcf8275,.36,.38),edge=mat(0xa4b4be,.27,.78),black=mat(0x0c0e12,.83),carpet=mat(0x121316,.96);
   box(s,31,.45,52,floor,0,-.8,18);box(s,30,1.2,2.8,black,0,.52,-2.2);
   box(s,31,.4,53,black,0,12.7,19);
   for(const side of [-1,1]){
@@ -127,7 +140,7 @@ export class TheaterThree{
    const p=box(s,.20,5.9,7.4,black,side*14.39,7,4.9);
    for(const z of [1.1,8.7])box(s,.11,5.9,.09,trim,side*14.22,7,z);
    for(const y of [3.98,10.05])box(s,.11,.08,7.55,trim,side*14.20,y,4.9);
-   const sign=new THREE.Mesh(new THREE.PlaneGeometry(6.3,3.2),new THREE.MeshBasicMaterial({map:signTexture(),toneMapped:false,side:THREE.DoubleSide}));
+   const sign=new THREE.Mesh(new THREE.PlaneGeometry(6.3,3.2),new THREE.MeshBasicMaterial({map:signTexture(this.profile.label,this.profile.accent),toneMapped:false,side:THREE.DoubleSide}));
    sign.position.set(side*14.18,7,4.9);sign.rotation.y=side===1?-Math.PI/2:Math.PI/2;s.add(sign);
    for(const z of [2,18,33]){
     box(s,.5,1.4,1.15,black,side*14.25,6.3,z);
@@ -139,7 +152,7 @@ export class TheaterThree{
    const z=-1+i*4.5;box(s,31,.65,.65,black,0,12.30,z);
    box(s,29,.05,.14,mat(0x343039,.55),0,11.96,z+.4);
    for(let x=-12;x<=12;x+=6){
-    const bulb=new THREE.Mesh(new THREE.SphereGeometry(.12,8,6),new THREE.MeshBasicMaterial({color:0xffd6b2,toneMapped:false}));bulb.position.set(x,11.93,z+.43);s.add(bulb);
+    const bulb=new THREE.Mesh(new THREE.SphereGeometry(.065,8,6),new THREE.MeshBasicMaterial({color:0xffd6b2,toneMapped:false}));bulb.position.set(x,11.93,z+.43);s.add(bulb);
     if(i%3===0&&(x===-6||x===6)){const p=new THREE.PointLight(0xffd4a2,low?.50:.62,13,2.2);p.position.set(x,11.75,z+.43);s.add(p);}
    }
   }
@@ -155,9 +168,11 @@ export class TheaterThree{
    }
   }
   // Screen border, silver trim, projection bounce lighting.
-  box(s,25.7,10.6,.25,mat(0x181b20,.65),0,6.68,-4.32);
-  for(const x of [-12.72,12.72])box(s,.13,10.7,.20,edge,x,6.7,-4.15);
-  for(const y of [1.41,11.97])box(s,25.5,.12,.2,edge,0,y,-4.14);
+  const sw=this.profile.screenWidth,sh=this.profile.screenHeight;
+  const cy=6.65,borderW=sw+.60,borderH=sh+.57;
+  box(s,borderW,borderH,.29,mat(0x111318,.59),0,cy,-4.32);
+  for(const x of [-borderW/2,borderW/2])box(s,.16,borderH,.21,edge,x,cy,-4.15);
+  for(const y of [cy-borderH/2,cy+borderH/2])box(s,borderW,.13,.21,edge,0,y,-4.14);
   for(const x of [-4,4]){const projector=new THREE.SpotLight(0xb9cff1,low?31:44,52,1.04,.84,1);projector.position.set(x,9.0,-4.2);projector.target.position.set(x/2,1.9,13);s.add(projector,projector.target);}
   // The floor and railings are three-dimensional round metal (no flat polygons).
   for(const z of [11,21,30])for(const x of [-7.64,7.64]){
@@ -167,11 +182,11 @@ export class TheaterThree{
    for(let j=0;j<5;j++){let zz=z+j*1.1;pipe(s,[x,y-1.22,zz],[x,y,zz],.032,edge,10);}
   }
   for(let x=-13;x<13;x+=2.5){pipe(s,[x,1.28,-1.15],[x+2.5,1.28,-1.15],.035,edge,14);pipe(s,[x,.36,-1.15],[x,1.28,-1.15],.025,edge,10);}
-  const p=new THREE.PointLight(0xa4c4f6,low?3.6:5.2,42,1.55);p.position.set(0,8,-2.8);s.add(p);this.screenSpill=p;this.screenSpillBase=p.intensity;
+  const p=new THREE.PointLight(0xb5c9f9,low?3.8:5.3,44,1.60);p.position.set(0,8,-2.8);s.add(p);this.screenSpill=p;this.screenSpillBase=p.intensity;
  }
  buildScreen(){
   const material=new THREE.MeshBasicMaterial({toneMapped:false,side:THREE.DoubleSide});
-  this.screen=new THREE.Mesh(new THREE.PlaneGeometry(23.65,9.62),material);this.screen.position.set(0,6.68,-4.01);this.scene.add(this.screen);
+  this.screen=new THREE.Mesh(new THREE.PlaneGeometry(this.profile.screenWidth,this.profile.screenHeight),material);this.screen.position.set(0,6.65,-4.01);this.scene.add(this.screen);
   this.screenTexture=new THREE.CanvasTexture(drawScreenCanvas(this.movie,null));this.screenTexture.colorSpace=THREE.SRGBColorSpace;material.map=this.screenTexture;material.needsUpdate=true;
  }
  loadPoster(){const sources=[imageSource(this.movie),`/assets/posters/${encodeURIComponent(this.movie.id)}.webp`];let index=0;
@@ -180,7 +195,7 @@ export class TheaterThree{
    image.onerror=()=>{index++;tryNext();};image.src=sources[index];};tryNext();
  }
  setupOverlay(){
-  const parent=this.canvas.parentElement;this.overlay=document.createElement('div');this.overlay.className='theater-screen-video';
+  const parent=this.canvas.parentElement;this.overlay=document.createElement('div');this.overlay.className='theater-screen-video';this.overlay.dataset.format=this.showFormat;this.videoFrameHeight=Math.round(1280*this.profile.screenHeight/this.profile.screenWidth);this.overlay.style.setProperty('--fox-frame-height',this.videoFrameHeight+'px');
   this.overlay.setAttribute('aria-label','Official movie trailer when available');this.overlay.style.display='none';parent.appendChild(this.overlay);
   // Do not load or autoplay third-party video before the three-second intro.
   if(this.movie.trailer&&/^[A-Za-z0-9_-]{11}$/.test(this.movie.trailer)){
@@ -190,8 +205,8 @@ export class TheaterThree{
     this.videoTimer=setTimeout(()=>{if(this.disposed)return;
       const frame=document.createElement('iframe');frame.title=`${this.movie.title} — Official trailer`;
       frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';frame.referrerPolicy='strict-origin-when-cross-origin';
-      frame.src=`https://www.youtube-nocookie.com/embed/${this.movie.trailer}?autoplay=1&mute=1&playsinline=1&controls=1&rel=0&modestbranding=1`;
-      frame.setAttribute('allowfullscreen','');frame.className='theater-trailer-iframe';this.overlay.appendChild(frame);
+      frame.src=trailerEmbedUrl(this.movie.trailer,{origin:location.origin,muted:true});
+      frame.setAttribute('allowfullscreen','');frame.className='theater-trailer-iframe';this.overlay.appendChild(frame);this.videoIframe=frame;frame.addEventListener('load',()=>{if(this.soundEnabled)this.applySound(true);},{once:true});
       requestAnimationFrame(()=>{this.overlay.querySelector('.theater-video-black')?.classList.add('fade-out');});
     },650);
    },3000);
@@ -200,20 +215,30 @@ export class TheaterThree{
    parent.appendChild(this.info);this.infoTimeout=setTimeout(()=>this.info?.remove(),4500);
   }
  }
+ /** YouTube postMessage API is opt-in; unmuting requires explicit user action on Safari. */
+ applySound(enabled){
+  if(!this.videoIframe?.contentWindow)return false;
+  const command=func=>this.videoIframe.contentWindow.postMessage(JSON.stringify({event:'command',func,args:[]}), 'https://www.youtube-nocookie.com');
+  command(enabled?'unMute':'mute');
+  if(enabled)command('playVideo');
+  return true;
+ }
+ setSoundEnabled(enabled){this.soundEnabled=Boolean(enabled);return this.applySound(this.soundEnabled);}
  updateOverlay(){if(!this.overlay||this.overlay.style.display==='none')return;
-  const screenCorners=[[-11.825,11.49,-3.92],[11.825,11.49,-3.92],[11.825,1.87,-3.92],[-11.825,1.87,-3.92]];
+  const x=this.profile.screenWidth/2,y=this.profile.screenHeight/2,cy=6.65;
+  const screenCorners=[[-x,cy+y,-3.92],[x,cy+y,-3.92],[x,cy-y,-3.92],[-x,cy-y,-3.92]];
   const w=this.canvas.clientWidth,h=this.canvas.clientHeight;
   const projected=screenCorners.map(p=>{const q=new THREE.Vector3(...p).project(this.camera);return [(q.x+1)*w/2,(-q.y+1)*h/2,q.z]});
   if(projected.some(p=>p[2]>1)){this.overlay.style.visibility='hidden';return;}this.overlay.style.visibility='visible';
-  const m=homography(projected.map(p=>p.slice(0,2)),1280,520);if(m)this.overlay.style.transform=m;
+  const m=homography(projected.map(p=>p.slice(0,2)),1280,this.videoFrameHeight);if(m)this.overlay.style.transform=m;
  }
  setSeat(id,immediate=false){const s=getSeat(id);if(!s)return;this.selected=id;
   const eye=v(s.x,s.y+2.07,s.z+.15),look=v(0,6.5,-4);this.destEye=eye;this.destTarget=look;
   if(immediate||reduced()){this.currentEye.copy(eye);this.currentTarget.copy(look);this.entry=false;this.tween=null;}
-  else this.tween={fromEye:this.currentEye.clone(),fromTarget:this.currentTarget.clone(),toEye:eye,toTarget:look,started:performance.now(),duration:this.entry?1650:1100,fromFov:this.fov,toFov:58,isEntry:this.entry};
+  else this.tween={fromEye:this.currentEye.clone(),fromTarget:this.currentTarget.clone(),toEye:eye,toTarget:look,started:performance.now(),duration:this.entry?1650:1100,fromFov:this.fov,toFov:54,isEntry:this.entry};
   this.yaw=0;this.pitch=0;
  }
- reset(){this.yaw=0;this.pitch=0;this.fov=58;}
+ reset(){this.yaw=0;this.pitch=0;this.fov=54;}
  attachInput(){
   this.down=e=>{if(e.button!==0)return;this.pointer=[e.clientX,e.clientY];this.canvas.setPointerCapture(e.pointerId)};
   this.move=e=>{if(!this.pointer)return;this.yaw=clamp(this.yaw+(e.clientX-this.pointer[0])*.003,-.72,.72);this.pitch=clamp(this.pitch+(e.clientY-this.pointer[1])*.003,-.40,.42);this.pointer=[e.clientX,e.clientY];};
@@ -240,7 +265,7 @@ export class TheaterThree{
   if(document.visibilityState!=='hidden'){this.renderer.render(this.scene,this.camera);this.updateOverlay();}
   this.raf=requestAnimationFrame(this.frame);
  }
- dispose(){this.disposed=true;cancelAnimationFrame(this.raf);clearTimeout(this.timer);clearTimeout(this.videoTimer);clearTimeout(this.videoRevealTimer);clearTimeout(this.infoTimeout);
+ dispose(){this.disposed=true;cancelAnimationFrame(this.raf);clearTimeout(this.timer);clearTimeout(this.videoTimer);clearTimeout(this.videoRevealTimer);clearTimeout(this.infoTimeout);this.videoIframe=null;
   this.overlay?.remove();this.info?.remove();window.removeEventListener('resize',this.onResize);
   this.canvas.removeEventListener('pointerdown',this.down);this.canvas.removeEventListener('pointermove',this.move);this.canvas.removeEventListener('pointerup',this.up);this.canvas.removeEventListener('pointercancel',this.up);this.canvas.removeEventListener('wheel',this.wheel);
   grainTexture?.dispose?.();grainTexture=null;this.scene.traverse(obj=>{obj.geometry?.dispose?.();if(obj.material){const a=Array.isArray(obj.material)?obj.material:[obj.material];for(const m of a){m.map?.dispose?.();m.dispose?.();}}});this.renderer.dispose();

@@ -299,3 +299,13 @@ html[data-fox-route="theater"] .theater-page .seat-view-label{animation:fox-cine
  .movies-page .seg button,.movies-page .filter-search,.movies-page .filter-select{transition:none}
  .theater-screen-video .theater-video-black{transition:none}
 }
+
+/* V10 – Cinema projector geometry, direct sound control, responsive instrument panel. */
+.theater-screen-video{--fox-frame-width:1280px;--fox-frame-height:542px;width:1280px!important;height:var(--fox-frame-height,542px)!important;contain:layout paint;box-shadow:0 0 36px #7baaff2b,0 0 85px #a2b9ef16;}
+.theater-screen-video iframe.theater-trailer-iframe{position:absolute!important;left:0!important;top:calc((var(--fox-frame-height,542px) - 720px)/2)!important;width:1280px!important;height:720px!important;max-width:none!important;display:block!important;transform:none!important;border:0;}
+.theater-controls .theater-audio-btn{display:inline-flex;align-items:center;gap:7px;justify-content:center;min-height:36px;background:#141820ef;color:#f5f7fa;border:1px solid #4c515b;box-shadow:0 7px 30px #0009;backdrop-filter:blur(10px);padding:8px 13px;border-radius:10px;font:600 12px/1.25 var(--sans,Arial,sans-serif);cursor:pointer;transition:background .2s,border-color .2s,transform .2s;}
+.theater-controls .theater-audio-btn:hover,.theater-controls .theater-audio-btn[aria-pressed="true"]{background:#20312e;border-color:#7dea9f;color:#e4ffef;}
+.theater-controls .theater-audio-btn:focus-visible{outline:2px solid #7dea9f;outline-offset:3px;}
+.show-format-pill{color:#eab6a2;background:#612c38;border:1px solid #9c5062;padding:3px 9px;border-radius:999px;letter-spacing:.06em;font-size:10px;font-weight:750;}
+@media(max-width:720px){.theater-controls{left:10px;bottom:auto;top:75px;flex-direction:row;gap:5px;max-width:calc(100vw - 20px)}.theater-controls button{padding:7px 9px!important;font-size:11px!important}.theater-controls .theater-audio-btn span{font-size:10px}.theater-controls span:not(.theater-audio-btn span){display:none}}
+@media(prefers-reduced-motion:reduce){.theater-controls .theater-audio-btn{transition:none}}
