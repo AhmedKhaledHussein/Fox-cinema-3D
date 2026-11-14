@@ -374,13 +374,15 @@ function setHudOpen(next){
  if(!state.hudOpen&&wasOpen&&panel.contains(document.activeElement))toggle.focus({preventScroll:true});
  panel.inert=!state.hudOpen;
  panel.setAttribute('aria-hidden',String(!state.hudOpen));
- // On desktop, anchor the chevron to the actual panel edge and near its top,
- // rather than centering it against the entire cinema viewport.
+ // Use one shared travel distance for the panel and its attached chevron.
+ // Both now animate by transform with identical timing, so the tab never jumps.
  if(!mobile){
+   page.style.setProperty('--fox-hud-travel',`${panel.offsetWidth+18}px`);
    toggle.style.top=`${Math.max(12,panel.offsetTop+18)}px`;
-   toggle.style.right=state.hudOpen?`${panel.offsetWidth+17}px`:'0px';
-   toggle.style.transform='none';
+   toggle.style.removeProperty('right');
+   toggle.style.removeProperty('transform');
  }else{
+   page.style.removeProperty('--fox-hud-travel');
    toggle.style.removeProperty('top');
    toggle.style.removeProperty('right');
    toggle.style.removeProperty('transform');
