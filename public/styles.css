@@ -485,3 +485,31 @@ html[data-fox-route="theater"] .theater-page .seat-view-label{animation:fox-cine
   .seat-row .seat{height:13px;min-height:13px}
   .seat-legend{margin-top:3px}
 }
+
+/* FOX V16 — movie cast & real TMDb character credits */
+.cast-section{padding:12px 0 82px;border-top:1px solid #26252a}
+.cast-heading{display:flex;justify-content:space-between;align-items:end;gap:18px;margin:20px 0 26px}
+.cast-heading h2{font-size:clamp(30px,4.1vw,54px);letter-spacing:-2px;margin:8px 0 0;line-height:1.13}
+.cast-heading h2 em{font-family:var(--serif);font-weight:400}
+.cast-source{font-size:12px;color:#97939d;text-align:end}
+.cast-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:24px 15px}
+.cast-person{min-width:0;text-align:center;padding:8px 4px 14px;border-radius:18px;transition:background .22s,transform .22s}
+.cast-person:hover{background:#18171d;transform:translateY(-3px)}
+.cast-link{display:flex;flex-direction:column;align-items:center;gap:12px}
+.cast-avatar{display:grid;place-items:center;position:relative;width:min(100%,136px);aspect-ratio:1;border-radius:50%;overflow:hidden;background:linear-gradient(130deg,#49314b,#191b28);border:2px solid #383039;box-shadow:0 10px 24px #0006}
+.cast-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 22%;z-index:2}
+.cast-initials{color:#dac2da;font-weight:750;font-size:clamp(18px,2.8vw,30px)}
+.cast-name{display:block;font-weight:750;font-size:14px;line-height:1.35;overflow-wrap:anywhere;max-width:100%}
+.cast-role-label{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:#e98ac4;display:block;margin:9px 0 4px}
+.cast-character{display:block;font-size:12px;line-height:1.4;color:#bdb8c0;overflow-wrap:anywhere}
+.cast-loading,.cast-empty{padding:23px;border:1px solid #302d35;background:#17151b;border-radius:18px;color:#b4afba;font-size:13px}
+[dir=rtl] .cast-heading{direction:rtl}
+@media(max-width:950px){.cast-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:620px){.cast-section{padding-top:18px;padding-bottom:55px}.cast-heading{align-items:start;flex-direction:column;gap:8px}.cast-heading h2{font-size:34px;letter-spacing:-1px}.cast-source{text-align:start}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:17px 9px}.cast-avatar{width:min(100%,102px)}.cast-name{font-size:12px}.cast-character{font-size:11px}.cast-role-label{font-size:9px}}
+@media(max-width:350px){.cast-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.seat-audio-info{margin:1px 0 16px;padding:11px 12px;border-radius:13px;background:#1e2024;border:1px solid #37353f}
+.seat-audio-info>span{font-size:11px;color:#cac4d0}.seat-audio-info strong{float:right;font-size:12px;color:#86e5ac}
+.seat-audio-meter{background:#44414b;height:4px;border-radius:6px;overflow:hidden;margin:9px 0 7px}
+.seat-audio-meter i{display:block;height:100%;border-radius:6px;background:#83dba7}
+.seat-audio-info small{font-size:10px;line-height:1.5;color:#9a959f;display:block}
+[dir=rtl] .seat-audio-info strong{float:left}

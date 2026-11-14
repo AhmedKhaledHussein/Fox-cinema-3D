@@ -7,6 +7,7 @@ import {getMovie,getSeat,layout} from './catalog.js';
 import {screenProfile,normalizeScreenFormat,trailerEmbedUrl} from './theater-presets.js';
 import {ScreenFrameProbe,localTrailerPath,smoothLightSample} from './screen-lighting.js';
 import {loadYouTubeIFrameAPI,sampleTimedLight,lightTrackPath} from './youtube-light-sync.js';
+import {seatAudioProfile} from './seat-audio.js';
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 const reduced=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches||false;
 const v=(x,y,z)=>new THREE.Vector3(x,y,z);
@@ -160,7 +161,7 @@ function homography(q,W,H){
 }
 export class TheaterThree{
  constructor(canvas,onReady,movieId='godzilla-minus-zero',selectedFormat='Standard'){
-  this.canvas=canvas;this.movie=getMovie(movieId);this.showFormat=normalizeScreenFormat(selectedFormat);this.profile=screenProfile(this.showFormat);this.disposed=false;this.soundEnabled=false;this.trailerActive=false;this.selected='G9';this.yaw=0;this.pitch=0;this.fov=50;this.currentEye=v(0,20.8,38);this.currentTarget=v(0,4.7,9);
+  this.canvas=canvas;this.movie=getMovie(movieId);this.showFormat=normalizeScreenFormat(selectedFormat);this.profile=screenProfile(this.showFormat);this.disposed=false;this.soundEnabled=false;this.seatAcoustics=seatAudioProfile(getSeat('G9'));this.audioContext=null;this.audioGain=null;this.audioPanner=null;this.trailerActive=false;this.selected='G9';this.yaw=0;this.pitch=0;this.fov=50;this.currentEye=v(0,20.8,38);this.currentTarget=v(0,4.7,9);
   this.destEye=this.currentEye.clone();this.destTarget=this.currentTarget.clone();this.entry=true;this.pointer=null;this.tween=null;
   const isMobile=window.innerWidth<760,low=isMobile||(navigator.deviceMemory&&navigator.deviceMemory<=4);
   this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
@@ -350,6 +351,7 @@ export class TheaterThree{
    this.youtubePlayer=new YT.Player(iframe,{events:{
     onReady:event=>{
      if(disposed())return;
+     event.target.setVolume?.(this.seatAcoustics.volume);
      if(this.soundEnabled)event.target.unMute();else event.target.mute();
     },
     onStateChange:event=>{
@@ -404,7 +406,7 @@ export class TheaterThree{
    const previous=this.screen.material.map;
    this.screen.material.map=texture;this.screen.material.needsUpdate=true;
    previous?.dispose?.();
-   this.videoTexture=texture;this.trailerLocalVideo=video;this.lightMode='sampled-video';this.trailerActive=true;
+   this.videoTexture=texture;this.trailerLocalVideo=video;this.lightMode='sampled-video';this.trailerActive=true;this.updateSeatAudio();
    this.screenFadeState={start:performance.now(),phase:'out',duration:650};
   };
   video.addEventListener('loadeddata',()=>{
@@ -415,11 +417,44 @@ export class TheaterThree{
   },{once:true});
   this.videoLoadTimeout=setTimeout(fallback,5000);
  }
+ /** Web Audio can position ONLY local, licensed media—not cross-origin YouTube iframes. */
+ startSpatialLocalAudio(){
+  if(!this.trailerLocalVideo)return false;
+  const Context=window.AudioContext||window.webkitAudioContext;
+  if(!Context)return false;
+  try{
+   if(!this.audioContext){
+    this.audioContext=new Context();
+    const src=this.audioContext.createMediaElementSource(this.trailerLocalVideo);
+    this.audioPanner=this.audioContext.createStereoPanner?.()||null;
+    this.audioGain=this.audioContext.createGain();
+    src.connect(this.audioPanner||this.audioGain);
+    if(this.audioPanner)this.audioPanner.connect(this.audioGain);
+    this.audioGain.connect(this.audioContext.destination);
+   }
+   this.audioContext.resume?.().catch(()=>{});
+   this.trailerLocalVideo.volume=1;
+   this.trailerLocalVideo.muted=false;
+   this.updateSeatAudio();
+   return true;
+  }catch{return false;}
+ }
+ updateSeatAudio(){
+  const profile=this.seatAcoustics||seatAudioProfile(getSeat(this.selected));
+  try{this.youtubePlayer?.setVolume?.(profile.volume);}catch{}
+  if(this.videoIframe?.contentWindow){
+   try{this.videoIframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'setVolume',args:[profile.volume]}),'https://www.youtube-nocookie.com');}catch{}
+  }
+  if(this.audioGain)this.audioGain.gain.setTargetAtTime(this.soundEnabled?profile.volume/100:0,this.audioContext.currentTime,.18);
+  if(this.audioPanner)this.audioPanner.pan.setTargetAtTime(profile.pan,this.audioContext.currentTime,.2);
+  if(this.trailerLocalVideo&&!this.audioGain)this.trailerLocalVideo.volume=profile.volume/100;
+ }
  /** YouTube postMessage API is opt-in; unmuting requires explicit user action on Safari. */
  applySound(enabled){
-  if(this.trailerLocalVideo){this.trailerLocalVideo.muted=!enabled;if(enabled)this.trailerLocalVideo.play().catch(()=>{});return true;}
-  if(this.youtubePlayer&&typeof this.youtubePlayer.mute==='function'){try{enabled?this.youtubePlayer.unMute():this.youtubePlayer.mute();if(enabled)this.youtubePlayer.playVideo();return true;}catch{}}
+  if(this.trailerLocalVideo){if(enabled){if(!this.startSpatialLocalAudio())this.trailerLocalVideo.muted=false;this.trailerLocalVideo.play().catch(()=>{});}else{if(this.audioGain)this.audioGain.gain.setTargetAtTime(0,this.audioContext.currentTime,.1);else this.trailerLocalVideo.muted=true;}this.updateSeatAudio();return true;}
+  if(this.youtubePlayer&&typeof this.youtubePlayer.mute==='function'){try{this.updateSeatAudio();enabled?this.youtubePlayer.unMute():this.youtubePlayer.mute();if(enabled)this.youtubePlayer.playVideo();return true;}catch{}}
   if(!this.videoIframe?.contentWindow)return false;
+  this.updateSeatAudio();
   const command=func=>this.videoIframe.contentWindow.postMessage(JSON.stringify({event:'command',func,args:[]}), 'https://www.youtube-nocookie.com');
   command(enabled?'unMute':'mute');
   if(enabled)command('playVideo');
@@ -500,7 +535,7 @@ export class TheaterThree{
   if(projected.some(p=>p[2]>1)){this.overlay.style.visibility='hidden';return;}this.overlay.style.visibility='visible';
   const m=homography(projected.map(p=>p.slice(0,2)),1280,this.videoFrameHeight);if(m)this.overlay.style.transform=m;
  }
- setSeat(id,immediate=false){const s=getSeat(id);if(!s)return;this.selected=id;
+ setSeat(id,immediate=false){const s=getSeat(id);if(!s)return;this.selected=id;this.seatAcoustics=seatAudioProfile(s);this.updateSeatAudio();
   const mobile=window.innerWidth<=720;const eye=v(s.x,s.y+2.02,s.z+.15),look=v(0,mobile?6.15:4.80,-4);this.destEye=eye;this.destTarget=look;
   if(immediate||reduced()){this.currentEye.copy(eye);this.currentTarget.copy(look);this.entry=false;this.tween=null;}
   else this.tween={fromEye:this.currentEye.clone(),fromTarget:this.currentTarget.clone(),toEye:eye,toTarget:look,started:performance.now(),duration:this.entry?1650:1100,fromFov:this.fov,toFov:(mobile?Math.max(66,Math.min(78,64+(.47-this.canvas.clientWidth/Math.max(1,this.canvas.clientHeight))*25)):(s.rowIndex<3?52:49)),isEntry:this.entry};
@@ -532,7 +567,7 @@ export class TheaterThree{
  }
  dispose(){this.disposed=true;cancelAnimationFrame(this.raf);clearTimeout(this.timer);clearTimeout(this.videoTimer);clearTimeout(this.videoRevealTimer);clearTimeout(this.infoTimeout);clearTimeout(this.localVideoRevealTimer);this.videoIframe=null;try{this.youtubePlayer?.destroy?.();}catch{}this.youtubePlayer=null;clearTimeout(this.videoLoadTimeout);
   if(this.trailerLocalVideo){this.trailerLocalVideo.pause();this.trailerLocalVideo.removeAttribute('src');this.trailerLocalVideo.load();this.trailerLocalVideo=null;}
-  this.videoTexture?.dispose();this.videoTexture=null;
+  this.videoTexture?.dispose();this.videoTexture=null;try{this.audioContext?.close?.();}catch{}this.audioContext=null;this.audioPanner=null;this.audioGain=null;
   this.overlay?.remove();this.info?.remove();window.removeEventListener('resize',this.onResize);
   this.canvas.removeEventListener('pointerdown',this.down);this.canvas.removeEventListener('pointermove',this.move);this.canvas.removeEventListener('pointerup',this.up);this.canvas.removeEventListener('pointercancel',this.up);this.canvas.removeEventListener('wheel',this.wheel);
   grainTexture?.dispose?.();grainTexture=null;const geometries=new Set(),materials=new Set(),textures=new Set();this.scene.traverse(obj=>{if(obj.geometry)geometries.add(obj.geometry);if(obj.material)for(const m of (Array.isArray(obj.material)?obj.material:[obj.material])){materials.add(m);if(m.map)textures.add(m.map);}});for(const g of geometries)g.dispose();for(const t of textures)t.dispose();for(const m of materials)m.dispose();this.renderer.dispose();
