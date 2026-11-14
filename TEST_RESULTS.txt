@@ -1,6 +1,4 @@
-FOX CINEMA V11 TEST SUMMARY
-Node.js test runner: 45 tests, 45 passed, 0 failed.
-Includes V11 reference-restoration tests: curved instanced upholstery, FOV/screen framing, trailer sound and dynamic format, shared GPU resource cleanup.
-Static syntax validation: public/theater-three.js passed node --check.
-Live browser visual QA: NOT COMPLETED (local Chromium blocked by ERR_BLOCKED_BY_ADMINISTRATOR; this environment cannot inspect the live WebGL render).
-Exact photographic match to user's reference: NOT CLAIMED. Model is an original procedural reconstruction, not the source 3D asset.
+FOX CINEMA V11 TESTS — 45/45 passed; JS syntax check OK.
+Curved-shell upholstery with analytic normals and instanced seats, reference-focused camera, material and lighting restoration.
+Browser visual QA NOT performed: local Chromium blocked by ERR_BLOCKED_BY_ADMINISTRATOR.
+Exact visual equivalence not established; source 3D asset not available.

@@ -49,11 +49,30 @@ function upholsteredPad(low=false){
  }
  geo.computeVertexNormals();return geo;
 }
+/** Rounded, continuous leather shell. Unlike a faceted extruded box, each
+ * corner normal is analytically blended, so front/back upholstery is broad and
+ * naturally curved while the upper silhouette remains recliner-shaped.
+ */
+function curvedReclinerShell(low=false){
+ const geo=new THREE.BoxGeometry(2,2,2,low?4:9,low?6:12,low?3:6);
+ const a=geo.attributes.position,n=geo.attributes.normal,r=.68;
+ for(let i=0;i<a.count;i++){
+  const x=a.getX(i),y=a.getY(i),z=a.getZ(i);
+  const ix=clamp(x,-1+r,1-r),iy=clamp(y,-1+r,1-r),iz=clamp(z,-1+r,1-r);
+  const dx=x-ix,dy=y-iy,dz=z-iz;
+  const norm=Math.hypot(dx,dy,dz)||1;
+  const nx=dx/norm,ny=dy/norm,nz=dz/norm;
+  a.setXYZ(i,ix+r*nx,iy+r*ny,iz+r*nz);
+  n.setXYZ(i,nx,ny,nz);
+ }
+ a.needsUpdate=true;n.needsUpdate=true;geo.computeBoundingSphere();return geo;
+}
 function createSeatInstances(scene,low=false){
  const upholstery=upholsteredPad(low);
+ const shell=curvedReclinerShell(low);
  const cylinder=new THREE.CylinderGeometry(1,1,1,low?10:16);
  const parts=[
-  {name:'back-shell',geo:upholstery,pos:[0,1.12,.28],scale:[.50,.77,.31]},
+  {name:'back-shell',geo:shell,pos:[0,1.11,.30],scale:[.51,.76,.30]},
   {name:'back-inset',geo:upholstery,pos:[0,1.12,.53],scale:[.431,.625,.12]},
   {name:'headrest',geo:upholstery,pos:[0,1.66,.39],scale:[.43,.225,.19]},
   {name:'left-wing',geo:upholstery,pos:[-.44,1.12,.37],scale:[.085,.55,.19]},
