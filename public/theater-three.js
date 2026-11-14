@@ -1,4 +1,4 @@
-/** FOX CINEMA V12 — adaptive screen lighting with sculpted instanced recliners.
+/** FOX CINEMA V14 — softly brighter reactive auditorium lighting with sculpted instanced recliners.
  * Three.js loaded as an ESM dependency from jsDelivr, with the legacy WebGL renderer
  * retained in app.js as a network-failure fallback. No screenshot/video-frame set dressing.
  */
@@ -164,11 +164,11 @@ export class TheaterThree{
   this.destEye=this.currentEye.clone();this.destTarget=this.currentTarget.clone();this.entry=true;this.pointer=null;this.tween=null;
   const isMobile=window.innerWidth<760,low=isMobile||(navigator.deviceMemory&&navigator.deviceMemory<=4);
   this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
-  this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.30;
+  this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.36;
   this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,low?1.4:2.0));this.renderer.setClearColor(0x050507);
   this.scene=new THREE.Scene();this.scene.background=new THREE.Color(0x060608);this.scene.fog=new THREE.FogExp2(0x09090d,.0045);
   this.camera=new THREE.PerspectiveCamera(50,1,.16,110);
-  this.scene.add(new THREE.HemisphereLight(0xa8bbcf,0x501f27,1.03));this.scene.add(new THREE.AmbientLight(0x9eacbb,.28));
+  this.scene.add(new THREE.HemisphereLight(0xa8bbcf,0x501f27,1.12));this.scene.add(new THREE.AmbientLight(0x9eacbb,.32));
   this.buildAuditorium(low);createSeatInstances(this.scene,low);
   this.lowPower=Boolean(low);this.frameProbe=new ScreenFrameProbe(document);
   this.lightSample=null;this.smoothedLight=null;this.lastLightFrame=performance.now();
@@ -201,7 +201,7 @@ export class TheaterThree{
    for(let z=0;z<42;z+=7.5){box(s,.09,1.3,.08,trim,side*14.18,2.4,z);}
    // Architectural wall glow gives the reference's deep red without brightening
    // the upholstery to the pale plastic look in V10.
-   const wallBounce=new THREE.PointLight(0xb3564d,low?.62:1.08,25,2.1);
+   const wallBounce=new THREE.PointLight(0xb3564d,low?.68:1.18,25,2.1);
    wallBounce.position.set(side*11.0,6.0,8);s.add(wallBounce);
   }
   const ceilingBulbGeometry=new THREE.SphereGeometry(.055,10,8);
@@ -255,7 +255,7 @@ export class TheaterThree{
   left.position.set(-7.2,5.7,-2.25);s.add(left);
   const right=new THREE.PointLight(0xffad8c,low?.65:1.7,low?17:28,1.9);
   right.position.set(7.2,5.7,-2.25);s.add(right);this.sideSpills=[left,right];
-  const audience=new THREE.SpotLight(0x98bafa,low?2.4:4.9,low?29:40,.82,.84,1.85);
+  const audience=new THREE.SpotLight(0x98bafa,low?2.6:5.2,low?29:40,.82,.84,1.85);
   audience.position.set(0,7.15,-2.45);audience.target.position.set(0,1.2,13);s.add(audience,audience.target);this.audienceSpill=audience;
   this.screenSpillBase=p.intensity;this.audienceBase=audience.intensity;
   const haloTex=screenHaloTexture();
@@ -466,13 +466,13 @@ export class TheaterThree{
   // Physically plausible falloff: lights positioned by screen; no broad
   // emissive hacks on every leather seat. Color changes ease over 210ms.
   this.screenSpill.color.lerp(center,.11);
-  this.screenSpill.intensity=clamp(2.9*level*backdrop,.25,6.4);
+  this.screenSpill.intensity=clamp(3.14*level*backdrop,.25,6.9);
   this.sideSpills[0].color.lerp(left,.11);
   this.sideSpills[1].color.lerp(right,.11);
-  this.sideSpills[0].intensity=clamp(1.85*sample.zones[0].brightness*backdrop,.12,4.5);
-  this.sideSpills[1].intensity=clamp(1.85*sample.zones[2].brightness*backdrop,.12,4.5);
+  this.sideSpills[0].intensity=clamp(1.98*sample.zones[0].brightness*backdrop,.12,4.8);
+  this.sideSpills[1].intensity=clamp(1.98*sample.zones[2].brightness*backdrop,.12,4.8);
   this.audienceSpill.color.lerp(center,.09);
-  this.audienceSpill.intensity=clamp(this.audienceBase*level*backdrop,.2,7.8);
+  this.audienceSpill.intensity=clamp(this.audienceBase*level*backdrop,.2,8.3);
   // The two original strong front-of-house spotlights must also receive the
   // video's colours. Otherwise their fixed blue output overwhelms all changes.
   if(this.projectors?.length===2){
@@ -483,7 +483,7 @@ export class TheaterThree{
   }
   if(this.screenHalo){
    this.screenHalo.material.color.lerp(center,.09);
-   this.screenHalo.material.opacity=clamp(.11+.15*level,.10,.34);
+   this.screenHalo.material.opacity=clamp(.12+.16*level,.10,.36);
   }
   if(this.screenFadeState&&this.screenFade){
    const f=this.screenFadeState;
