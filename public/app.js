@@ -374,6 +374,17 @@ function setHudOpen(next){
  if(!state.hudOpen&&wasOpen&&panel.contains(document.activeElement))toggle.focus({preventScroll:true});
  panel.inert=!state.hudOpen;
  panel.setAttribute('aria-hidden',String(!state.hudOpen));
+ // On desktop, anchor the chevron to the actual panel edge and near its top,
+ // rather than centering it against the entire cinema viewport.
+ if(!mobile){
+   toggle.style.top=`${Math.max(12,panel.offsetTop+18)}px`;
+   toggle.style.right=state.hudOpen?`${panel.offsetWidth+17}px`:'0px';
+   toggle.style.transform='none';
+ }else{
+   toggle.style.removeProperty('top');
+   toggle.style.removeProperty('right');
+   toggle.style.removeProperty('transform');
+ }
  if(mobile&&state.hudOpen&&!wasOpen)requestAnimationFrame(()=>panel.querySelector('.hud-dismiss')?.focus({preventScroll:true}));
 }
 function updateTimer(){const el=$('#timer');if(!el)return;const seconds=Math.max(0,Math.floor(((state.expiresAt||Date.now()+600000)-Date.now())/1000));el.textContent=`◷ ${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;el.classList.toggle('warning',seconds<60);if(seconds===0){clearInterval(ticker);toast('Your seats were released. Please select seats again.');state.holdId=null;routeTo('seats/'+state.movieId)}}
