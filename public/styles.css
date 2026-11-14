@@ -599,7 +599,10 @@ html[data-fox-route="theater"] .theater-page .seat-view-label{animation:fox-cine
 .food-tabs .pill:focus-visible {outline:2px solid #ea0087;outline-offset:3px}
 [dir="rtl"] .food-tabs {direction:rtl}
 .food-card .food-photo {position:relative;overflow:hidden;aspect-ratio:1.45/1;width:100%;border-radius:14px;background:radial-gradient(circle at 35% 35%,#49233a,#1c1a1d 70%)}
-.food-card .food-photo::before {content:"🍿";position:absolute;inset:0;display:grid;place-items:center;font-size:72px}
+.food-card .food-photo::before {content:attr(data-emoji);position:absolute;inset:0;display:grid;place-items:center;font-size:72px}
+.food-card .food-photo img {position:relative;z-index:1;display:block;width:100%;height:100%;object-fit:cover;transition:transform .4s ease}
+.food-card .food-photo img[hidden] {display:none}
+.food-card:hover .food-photo img:not([hidden]) {transform:scale(1.04)}
 .food-card .food-photo-brand {position:absolute;right:10px;bottom:10px;z-index:2;display:inline-flex;align-items:baseline;gap:4px;background:rgba(9,9,12,.72);border-radius:7px;padding:4px 8px;font:bold 15px/1 Arial,sans-serif;color:#fff;letter-spacing:-.4px}
 .food-card .food-photo-brand small {font-size:7px;font-weight:600;letter-spacing:1.1px}
 .food-card h3 {margin-top:16px}
