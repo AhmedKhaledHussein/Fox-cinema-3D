@@ -46,10 +46,24 @@ Actual feature availability can depend on TMDb records, external poster hosts, Y
 | Content | **TMDb API v3** | Catalog, posters, film/TV metadata, cast and trailer lookup |
 | Hosting / API | **Vercel** static output and Node.js Serverless Functions | Serves `public/` and protected TMDb endpoints under `api/` |
 | Local demo backend | Node.js 20+ (`server.js`, built-in modules) | Demo accounts, seat holds, checkout and test bookings |
-| Fonts | DM Sans, Instrument Serif, IBM Plex Sans Arabic, Noto Naskh Arabic; CSS also requests Alexandria / Aref Ruqaa | English and Arabic typography with fallbacks |
+| Fonts | DM Sans, Instrument Serif, Alexandria, Aref Ruqaa, IBM Plex Sans Arabic, Noto Naskh Arabic; Lyon Arabic word artwork | Bilingual UI, fallback typography and Arabic editorial accent |
 | Testing | Node.js built-in `node:test` | Automated tests for APIs, catalog, booking and visual logic |
 
 **No React, Next.js, or build-tool framework is used.** Three.js is imported as an ES module from a CDN rather than installed through `package.json`; a network connection is required to load it.
+
+## Typography
+
+| Language | Typeface | Use |
+| --- | --- | --- |
+| English | **DM Sans** | Navigation, UI labels, forms, body and movie cards |
+| English | **Instrument Serif** | Italic and editorial title accents |
+| English | Arial, Inter, Georgia | Platform fallbacks |
+| Arabic | **Alexandria** | Main Arabic UI and headings |
+| Arabic | **Aref Ruqaa** | Decorative Arabic emphasis in other headings |
+| Arabic | **IBM Plex Sans Arabic**, **Noto Naskh Arabic** | Arabic alternatives and fallback typography |
+| Arabic word **«الآن»** | **Lyon Arabic Slanted Display Light** (Commercial Type) | Single-word vector artwork at `public/assets/lyon-arabic-now.svg`; the user-provided proprietary font binary is **not included or redistributed** |
+
+Web fonts load from Google Fonts when available. Broader use of the commercial Lyon typeface as a hosted font requires the appropriate license.
 
 ## Architecture
 

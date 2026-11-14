@@ -513,3 +513,19 @@ html[data-fox-route="theater"] .theater-page .seat-view-label{animation:fox-cine
 .seat-audio-meter i{display:block;height:100%;border-radius:6px;background:#83dba7}
 .seat-audio-info small{font-size:10px;line-height:1.5;color:#9a959f;display:block}
 [dir=rtl] .seat-audio-info strong{float:left}
+
+/* V17: decorative word rendered from the user's Commercial Type Lyon reference.
+   No proprietary font binary is redistributed with this repository. */
+[dir=rtl] :is(.section h2,.page-heading) em.arabic-now-lyon {
+ position:relative;display:inline-block;min-width:1.12em;width:1.12em;height:1.01em;
+ vertical-align:-.07em;white-space:nowrap;color:transparent!important;
+ font-style:normal;line-height:1;
+}
+[dir=rtl] :is(.section h2,.page-heading) em.arabic-now-lyon::after {
+ content:'';position:absolute;inset:0;display:block;pointer-events:none;
+ background:url('/assets/lyon-arabic-now.svg') center / contain no-repeat;
+}
+@media (forced-colors:active) {
+ [dir=rtl] :is(.section h2,.page-heading) em.arabic-now-lyon {width:auto;height:auto;color:CanvasText!important}
+ [dir=rtl] :is(.section h2,.page-heading) em.arabic-now-lyon::after {display:none}
+}
