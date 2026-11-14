@@ -600,7 +600,7 @@ html[data-fox-route="theater"] .theater-page .seat-view-label{animation:fox-cine
 [dir="rtl"] .food-tabs {direction:rtl}
 .food-card .food-photo {position:relative;overflow:hidden;aspect-ratio:1.45/1;width:100%;border-radius:14px;background:radial-gradient(circle at 35% 35%,#49233a,#1c1a1d 70%)}
 .food-card .food-photo::before {content:attr(data-emoji);position:absolute;inset:0;display:grid;place-items:center;font-size:72px}
-.food-card .food-photo img {position:relative;z-index:1;display:block;width:100%;height:100%;object-fit:contain;object-position:center center;transition:filter .25s ease}
+.food-card .food-photo img {position:relative;z-index:1;display:block;width:100%;height:100%;object-fit:cover;object-position:center center;transition:filter .25s ease}
 .food-card .food-photo img[hidden] {display:none}
 .food-card:hover .food-photo img:not([hidden]) {filter:brightness(1.06)}
 .food-card .food-photo-brand {position:absolute;right:10px;bottom:10px;z-index:2;display:inline-flex;align-items:baseline;gap:4px;background:rgba(9,9,12,.72);border-radius:7px;padding:4px 8px;font:bold 15px/1 Arial,sans-serif;color:#fff;letter-spacing:-.4px}
@@ -619,5 +619,5 @@ html[data-fox-route="theater"] .theater-page .seat-view-label{animation:fox-cine
 
 /* Keep complete branded packaging visible inside the existing product-card image frame. */
 .food-card .food-photo {background:radial-gradient(ellipse at 50% 40%,#4a0927 0%,#210914 75%,#180d14 100%)}
-.food-card .food-photo img {object-fit:contain!important;object-position:center!important;transform:none!important}
+.food-card .food-photo img {object-fit:cover!important;object-position:center!important;transform:none!important}
 .food-card .food-photo-brand {display:none!important}
