@@ -4,7 +4,7 @@ import {mergeCatalogue,inMode} from './catalog-live.js';
 import {localizeUI,uiText,genreArabic} from './i18n.js';
 const $=selector=>document.querySelector(selector);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const state={catalogueUpdated:null,catalogueCount:0,lang:(typeof localStorage!=='undefined'&&localStorage.getItem('fox-language')==='ar'?'ar':'en'),hero:1,filmMode:'now',query:'',genre:'',format:'',language:'',movieId:'godzilla-minus-zero',cinemaId:'city-centre-alexandria',dateOffset:2,time:'21:45',selected:new Set(),taken:new Set(defaultTaken),zoom:1,viewer:'G9',holdId:null,expiresAt:null,bookingId:null,ticket:null,step:1,checkoutContact:{email:'',firstName:'',lastName:'',phone:'',marketing:false},foodCinema:'mall-of-egypt',foodCategory:'All',cart:{},account:null,navOpen:false,authMode:'login',searchOpen:false,authOpen:false,trailerOpen:false};
+const state={catalogueUpdated:null,catalogueCount:0,trailerLoading:false,trailerError:'',lang:(typeof localStorage!=='undefined'&&localStorage.getItem('fox-language')==='ar'?'ar':'en'),hero:1,filmMode:'now',query:'',genre:'',format:'',language:'',movieId:'godzilla-minus-zero',cinemaId:'city-centre-alexandria',dateOffset:2,time:'21:45',selected:new Set(),taken:new Set(defaultTaken),zoom:1,viewer:'G9',holdId:null,expiresAt:null,bookingId:null,ticket:null,step:1,checkoutContact:{email:'',firstName:'',lastName:'',phone:'',marketing:false},foodCinema:'mall-of-egypt',foodCategory:'All',cart:{},account:null,navOpen:false,authMode:'login',searchOpen:false,authOpen:false,trailerOpen:false};
 const tr={
  en:{movies:'Movies',cinemas:'Cinemas',ways:'Ways to Watch',offers:'Offers',food:'Food & Drinks',signin:'Sign in',home:'Home',showing:'Now showing',coming:'Coming soon',watch:'Ways to watch',our:'Our cinemas',order:'Order your snacks',ahead:'ahead',seeall:'See all',book:'Book tickets',trailer:'Trailer',search:'Search movies, cast, genres…',screen:'SCREEN',continue:'Continue',view3d:'View in 3D',back:'Back',standard:'Standard',regular:'Regular',premium:'Premium',taken:'Taken',selected:'Selected',summary:'Summary',details:'Details',payment:'Payment',formEmail:'Email address',firstName:'First name',surname:'Surname',mobile:'Mobile number',ready:'Ready to book?',total:'Total',change:'Change seats'},
  ar:{movies:'الأفلام',cinemas:'السينمات',ways:'طرق المشاهدة',offers:'العروض',food:'المأكولات والمشروبات',signin:'دخول',home:'الرئيسية',showing:'يعرض الآن',coming:'قريبًا',watch:'طرق المشاهدة',our:'سينماتنا',order:'اطلب الوجبات',ahead:'مسبقًا',seeall:'عرض الكل',book:'احجز تذاكر',trailer:'إعلان الفيلم',search:'ابحث عن فيلم أو ممثل أو تصنيف…',screen:'الشاشة',continue:'متابعة',view3d:'شاهد بتقنية 3D',back:'عودة',standard:'عادي',regular:'عادي',premium:'مميز',taken:'محجوز',selected:'مختار',summary:'الملخص',details:'البيانات',payment:'الدفع',formEmail:'البريد الإلكتروني',firstName:'الاسم الأول',surname:'اسم العائلة',mobile:'رقم الموبايل',ready:'جاهز للحجز؟',total:'الإجمالي',change:'تغيير المقاعد'}};
@@ -75,27 +75,61 @@ async function api(url,method='GET',data){
 const asset=name=>!name?'/assets/poster-fallback.svg':/^(https?:)?\/\//.test(name)?name:'/assets/'+name;
 // The initial image is a unique LOCAL film-specific artwork. A promotional poster
 // only replaces it AFTER a successful load. Direct+proxy retries avoid empty cards.
-const localFilmArt=m=>m.isLive?(m.posterUrl||'/assets/poster-fallback.svg'):`/assets/posters/${encodeURIComponent(m.id)}.webp`;
+// TMDb posters are actual promotional artwork. If no poster is published, present a
+// title-specific clearly labeled fallback rather than a broken image or false film poster.
+const posterFallback=m=>{
+ const label=String(m?.title||'FOX CINEMA').slice(0,62);
+ const lines=label.match(/.{1,18}(?:\s|$)/g)?.slice(0,4)||[label];
+ const escaped=value=>String(value).replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[x]));
+ const hash=[...String(m?.id||label)].reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,0);
+ const hue=280+hash%65;
+ const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900"><defs><linearGradient id="b" x2=".8" y2="1"><stop stop-color="hsl(${hue} 38% 18%)"/><stop offset="1" stop-color="#0d0d15"/></linearGradient></defs><rect width="600" height="900" fill="url(#b)"/><circle cx="400" cy="295" r="210" fill="none" stroke="#ffffff20" stroke-width="3"/><path d="M70 540L530 110M90 150L510 650" fill="none" stroke="#ffffff12" stroke-width="16"/><text x="45" y="580" font-size="48" fill="#fff" font-weight="700" font-family="Arial,sans-serif">${lines.map((v,i)=>`<tspan x="45" dy="${i?64:0}">${escaped(v.trim())}</tspan>`).join('')}</text><text x="45" y="822" font-size="18" letter-spacing="3" fill="#d3a7cb" font-family="Arial,sans-serif">OFFICIAL POSTER UNAVAILABLE</text><text x="45" y="860" font-size="19" fill="#fff9" font-family="Arial,sans-serif">FOX CINEMA · TMDb discovery</text></svg>`;
+ return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+};
+const localFilmArt=m=>m.isLive?(m.posterUrl||posterFallback(m)):`/assets/posters/${encodeURIComponent(m.id)}.webp`;
 const movieArtwork=m=>localFilmArt(m);
 const movieName=m=>state.lang==='ar'?m.arabic:m.title;
 const movieStory=m=>state.lang==='ar'?(m.storyArabic||m.story):m.story;
 const labelGenre=g=>state.lang==='ar'?(genreArabic[g]||g):g;
 const movieDuration=m=>m.runtime?(state.lang==='ar'?`${Math.floor(m.runtime/60)} س ${String(m.runtime%60).padStart(2,'0')} د`:`${Math.floor(m.runtime/60)}h ${String(m.runtime%60).padStart(2,'0')}m`):(state.lang==='ar'?'المدة غير معلنة':'TBA');
 const labelLanguage=l=>state.lang==='ar'?({Arabic:'العربية',English:'الإنجليزية',Japanese:'اليابانية'}[l]||l):l;
-const moviePoster=(m,cls='')=>`<img class="${cls}" src="${esc(localFilmArt(m))}" data-film-poster="${esc(m.id)}" alt="${esc(movieName(m))}" loading="${cls==='hero-poster'?'eager':'lazy'}" decoding="async"/>`;
+const moviePoster=(m,cls='')=>`<img class="${cls}" src="${esc(localFilmArt(m))}" data-film-poster="${esc(m.id)}" data-poster-fallback="${esc(posterFallback(m))}" alt="${esc(movieName(m))}" loading="${cls==='hero-poster'?'eager':'lazy'}" decoding="async"/>`;
+// Broken image URLs (including third-party refusals) fall back to each film's own artwork.
+document.addEventListener('error',event=>{
+ const el=event.target;if(!el?.matches?.('[data-film-poster]')||el.dataset.posterFailed)return;
+ el.dataset.posterFailed='1';el.src=el.dataset.posterFallback;
+},true);
+const curatedLookup=new Map();
+async function resolveCuratedArtwork(movie){
+ if(movie.isLive)return null;
+ if(!curatedLookup.has(movie.id))curatedLookup.set(movie.id,(async()=>{
+  try{
+   const res=await fetch('/api/title?id='+encodeURIComponent(movie.id),{cache:'default'});
+   if(!res.ok)return null;
+   const result=await res.json();
+   if(/^https:\/\/image\.tmdb\.org\/t\/p\/w\d+\//.test(result.posterUrl||'')){
+    movie.posterUrl=result.posterUrl;movie.tmdbId=result.tmdbId;movie.posterSource=result.source;return result;
+   }
+  }catch(err){console.debug('Official poster lookup unavailable:',err.message)}
+  return null;
+ })());
+ return curatedLookup.get(movie.id);
+}
 const posterAttempts=source=>source&&/^https:\/\//i.test(source)?[source,`https://wsrv.nl/?url=${encodeURIComponent(source)}&w=960&fit=inside&output=webp`,`https://images.weserv.nl/?url=${encodeURIComponent(source.replace(/^https?:\/\//,''))}&w=960`]:[];
 let posterObserver=null;
 const filmPosterLoading=new WeakSet();
-function loadOfficialFilmPoster(el){
+async function loadOfficialFilmPoster(el){
  if(!el?.isConnected||filmPosterLoading.has(el))return;
  filmPosterLoading.add(el);
- const movie=movies.find(m=>m.id===el.dataset.filmPoster);if(!movie?.posterUrl)return;
+ const movie=movies.find(m=>m.id===el.dataset.filmPoster);if(!movie)return;
+ if(!movie.isLive)await resolveCuratedArtwork(movie);
+ if(!el.isConnected||!movie.posterUrl)return;
  const candidates=posterAttempts(movie.posterUrl);let attempt=0;
  const next=()=>{
   if(!el.isConnected||attempt>=candidates.length)return;
   const image=new Image();image.decoding='async';const src=candidates[attempt++];
   image.onload=()=>{if(!el.isConnected||image.naturalWidth<140||image.naturalHeight<180){next();return;}
-   el.onerror=()=>{el.onerror=null;el.src=localFilmArt(movie);};
+   el.onerror=()=>{el.onerror=null;el.src=el.dataset.posterFallback||posterFallback(movie);};
    el.src=src;el.classList.add('poster-official');
    if(el.classList.contains('hero-poster')){const backdrop=document.querySelector('.hero-bg');if(backdrop)backdrop.style.backgroundImage=`url("${src.replaceAll('"','%22')}")`;}
   };
@@ -125,7 +159,7 @@ const formatsCards=()=>formats.map(f=>`<a class="format-card" href="#/format/${f
 const cinemaCards=()=>cinemas.map(c=>`<a class="cinema-card" href="#/cinema/${c.id}">${img(c.picture,'',c.name)}<div class="content"><h3>${state.lang==='ar'?(c.nameAr||c.name):c.name}</h3><p>${state.lang==='ar'?(c.locationAr||c.location):c.location} &nbsp; →</p><div class="tags" style="margin-top:11px">${c.formats.slice(0,3).map(f=>`<span>${f}</span>`).join('')}</div></div></a>`).join('');
 const offerCards=()=>offers.map(o=>`<a class="offer-card" href="#/offer/${o.id}">${img(o.picture,'',o.name)}<div class="content"><div class="label">${o.label}</div><h3>${state.lang==='ar'?(o.nameAr||o.name):o.name}</h3><p>${state.lang==='ar'?(o.descriptionAr||o.description):o.description}</p><span class="more">More →</span></div></a>`).join('');
 function home(){return `${nav()}<main id="main-content">${hero()}<section class="section container" id="movies">${sectionHeader('MOVIES',state.lang==='en'?'Now':'يعرض',state.lang==='en'?'showing':'الآن','','movies')}<div class="movie-grid">${movies.slice(0,5).map(movieCard).join('')}</div></section><section class="section container">${sectionHeader('WAYS TO WATCH',state.lang==='en'?'Ways to':'طرق',state.lang==='en'?'watch':'المشاهدة',"There's more than one way to watch a movie at FOX.",'formats')}<div class="formats-grid">${formatsCards()}</div></section><section class="section container">${sectionHeader('FOX CINEMA','Take a','look','A closer look at your cinema experience.')}<div class="gallery-grid">${['format-gold-original.webp','cinema-lobby-original.webp','format-imax-original.webp'].map((p,i)=>img(p,'g-img',['Golden recliners','MAX theatre','IMAX cinema'][i])).join('')}</div></section><section class="section container"><div class="food-banner"><div class="copy"><div class="label">FOOD & DRINKS</div><h2>Order your snacks <em>ahead</em></h2><p class="muted">Choose your cinema, order online, and pick it up at the counter when you arrive.</p><p class="muted small">♧ Popcorn &nbsp;&nbsp; ♜ Hot food &nbsp;&nbsp; ◇ Drinks</p><a href="#/food" class="btn btn-white">Order food & drinks &nbsp; →</a></div><div class="food-art original-food-art"><img src="/assets/food-lounge-original.webp" alt="Original cinema snacks artwork"/></div></div></section><section class="section container">${sectionHeader('OFFERS','', 'Offers','Ticket deals and bank offers running now.','offers')}<div class="offer-grid">${offerCards()}</div></section><section class="section container">${sectionHeader('LOCATIONS','Our', 'cinemas','Find your nearest FOX CINEMA.','cinemas')}<div class="cinema-grid">${cinemaCards()}</div></section></main>${footer()}`}
-function moviesPage(){let filtered=movies.filter(m=>inMode(m,state.filmMode));if(state.query)filtered=filtered.filter(m=>`${m.title} ${m.arabic} ${labelGenre(m.genre)} ${m.cast}`.toLowerCase().includes(state.query.toLowerCase()));if(state.genre)filtered=filtered.filter(m=>m.genre===state.genre);if(state.format)filtered=filtered.filter(m=>m.format.includes(state.format));if(state.language)filtered=filtered.filter(m=>m.language===state.language);const genres=[...new Set(movies.map(m=>m.genre))];return `${nav()}<main id="main-content" class="inner-page container"><div class="label">MOVIES</div><h1 class="page-heading">${state.lang==='ar'?(({now:'يعرض <em>الآن</em>',coming:'قريبًا <em>في السينما</em>',explore:'اكتشف <em>الأفلام</em>',series:'أحدث <em>المسلسلات</em>',arabic:'أعمال <em>عربية</em>'}[state.filmMode]||'اكتشف <em>الأفلام</em>')):(({now:'Now <em>showing</em>',coming:'Coming <em>soon</em>',explore:'Discover <em>movies</em>',series:'TV <em>series</em>',arabic:'Arabic <em>titles</em>'}[state.filmMode]||'Discover <em>movies</em>'))}</h1><div class="filters-wide"><div class="seg"><button class="${state.filmMode==='now'?'on':''}" data-action="film-mode" data-value="now">${t('showing')}</button><button class="${state.filmMode==='coming'?'on':''}" data-action="film-mode" data-value="coming">${t('coming')}</button><button class="${state.filmMode==='explore'?'on':''}" data-action="film-mode" data-value="explore">${state.lang==='ar'?'اكتشف الأفلام':'Discover films'}</button><button class="${state.filmMode==='series'?'on':''}" data-action="film-mode" data-value="series">${state.lang==='ar'?'المسلسلات':'TV series'}</button><button class="${state.filmMode==='arabic'?'on':''}" data-action="film-mode" data-value="arabic">${state.lang==='ar'?'أعمال عربية':'Arabic titles'}</button></div><div class="filter-bar"><input class="filter-search" id="filmQuery" aria-label="Search movies" placeholder="⌕ Search by title, actor or genre" value="${esc(state.query)}"/><select id="filmGenre" class="filter-select"><option value="">All genres</option>${genres.map(g=>`<option ${state.genre===g?'selected':''}>${g}</option>`).join('')}</select><select id="filmFormat" class="filter-select"><option value="">All formats</option>${formats.map(f=>`<option ${state.format===f.name?'selected':''}>${f.name}</option>`).join('')}</select><select id="filmLanguage" class="filter-select"><option value="">All languages</option>${[...new Set(movies.map(m=>m.language))].map(g=>`<option ${state.language===g?'selected':''}>${g}</option>`).join('')}</select></div></div><p class="tmdb-data-note">${state.catalogueUpdated?`${state.lang==='ar'?'كتالوج TMDb:':'TMDb catalogue:'} ${state.catalogueCount} ${state.lang==='ar'?'عنوان؛ آخر تحديث:':'titles; synced'} ${new Date(state.catalogueUpdated).toLocaleString(state.lang==='ar'?'ar-EG':'en-US')}`:(state.lang==='ar'?'قائمة تجريبية؛ أضف مفتاح TMDb في GitHub Actions لتفعيل التحديث كل ساعة.':'Demo catalogue — configure TMDb GitHub Actions secret for hourly updates.')}. ${state.lang==='ar'?'بيانات استكشاف وليست مواعيد عرض أو حجوزات فعلية.':'Discovery listings are not cinema showtimes or tickets.'} <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer">TMDb</a></p><div id="filmResults" class="movie-grid">${filtered.length?filtered.map(movieCard).join(''):'<div class="empty-state">No matching movies. Try adjusting your filters.</div>'}</div></main>${footer()}`}
+function moviesPage(){let filtered=movies.filter(m=>inMode(m,state.filmMode));if(state.query)filtered=filtered.filter(m=>`${m.title} ${m.arabic} ${labelGenre(m.genre)} ${m.cast}`.toLowerCase().includes(state.query.toLowerCase()));if(state.genre)filtered=filtered.filter(m=>m.genre===state.genre);if(state.format)filtered=filtered.filter(m=>m.format.includes(state.format));if(state.language)filtered=filtered.filter(m=>m.language===state.language);const genres=[...new Set(movies.map(m=>m.genre))];return `${nav()}<main id="main-content" class="inner-page container"><div class="label">MOVIES</div><h1 class="page-heading">${state.lang==='ar'?(({now:'يعرض <em>الآن</em>',coming:'قريبًا <em>في السينما</em>',explore:'اكتشف <em>الأفلام</em>',series:'أحدث <em>المسلسلات</em>',arabic:'أعمال <em>عربية</em>'}[state.filmMode]||'اكتشف <em>الأفلام</em>')):(({now:'Now <em>showing</em>',coming:'Coming <em>soon</em>',explore:'Discover <em>movies</em>',series:'TV <em>series</em>',arabic:'Arabic <em>titles</em>'}[state.filmMode]||'Discover <em>movies</em>'))}</h1><div class="filters-wide"><div class="seg"><button class="${state.filmMode==='now'?'on':''}" data-action="film-mode" data-value="now">${t('showing')}</button><button class="${state.filmMode==='coming'?'on':''}" data-action="film-mode" data-value="coming">${t('coming')}</button><button class="${state.filmMode==='explore'?'on':''}" data-action="film-mode" data-value="explore">${state.lang==='ar'?'اكتشف الأفلام':'Discover films'}</button><button class="${state.filmMode==='series'?'on':''}" data-action="film-mode" data-value="series">${state.lang==='ar'?'المسلسلات':'TV series'}</button><button class="${state.filmMode==='arabic'?'on':''}" data-action="film-mode" data-value="arabic">${state.lang==='ar'?'أعمال عربية':'Arabic titles'}</button></div><div class="filter-bar"><input class="filter-search" id="filmQuery" aria-label="Search movies" placeholder="⌕ Search by title, actor or genre" value="${esc(state.query)}"/><select id="filmGenre" class="filter-select"><option value="">All genres</option>${genres.map(g=>`<option ${state.genre===g?'selected':''}>${g}</option>`).join('')}</select><select id="filmFormat" class="filter-select"><option value="">All formats</option>${formats.map(f=>`<option ${state.format===f.name?'selected':''}>${f.name}</option>`).join('')}</select><select id="filmLanguage" class="filter-select"><option value="">All languages</option>${[...new Set(movies.map(m=>m.language))].map(g=>`<option ${state.language===g?'selected':''}>${g}</option>`).join('')}</select></div></div><p class="tmdb-data-note">${state.catalogueUpdated?`${state.lang==='ar'?'كتالوج TMDb:':'TMDb catalogue:'} ${state.catalogueCount} ${state.lang==='ar'?'عنوان؛ آخر تحديث:':'titles; synced'} ${new Date(state.catalogueUpdated).toLocaleString(state.lang==='ar'?'ar-EG':'en-US')}`:(state.lang==='ar'?'قائمة تجريبية؛ فعّل واجهة TMDb الآمنة على Vercel لعرض البيانات الحية.':'Demo catalogue — connect the secure Vercel TMDb API to load live discoveries.')}. ${state.lang==='ar'?'بيانات استكشاف وليست مواعيد عرض أو حجوزات فعلية.':'Discovery listings are not cinema showtimes or tickets.'} <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer">TMDb</a></p><div id="filmResults" class="movie-grid">${filtered.length?filtered.map(movieCard).join(''):'<div class="empty-state">No matching movies. Try adjusting your filters.</div>'}</div></main>${footer()}`}
 function cinemasPage(){return `${nav()}<main class="inner-page container" id="main-content"><div class="label">CINEMAS</div><h1 class="page-heading">Our <em>cinemas</em></h1><p class="section-desc">Discover the big screen experience at our destinations.</p><div class="cinema-grid" style="margin-top:40px">${cinemaCards()}</div></main>${footer()}`}
 function cinemaPage(id){const c=cinemas.find(c=>c.id===id)||cinemas[0];return `${nav()}<main id="main-content" class="inner-page container"><div class="label">FOX CINEMA · EGYPT</div><h1 class="page-heading">${state.lang==='ar'?(c.nameAr||c.name):c.name}</h1><p class="muted">⌖ ${state.lang==='ar'?(c.locationAr||c.location):c.location}</p><div class="page-art" style="height:410px;margin:35px 0">${img(c.picture,'',c.name)}</div><h2>Experience more</h2><div class="tags">${c.formats.map(f=>`<span>${f}</span>`).join('')}</div><div class="section-head" style="margin-top:40px"><div><h2 style="font-size:45px">Now <em>showing</em></h2></div></div><div class="movie-grid">${movies.filter(x=>!x.coming).map(movieCard).join('')}</div></main>${footer()}`}
 function formatsPage(){return `${nav()}<main id="main-content" class="inner-page container"><div class="label">WAYS TO WATCH</div><h1 class="page-heading">Ways to <em>watch</em></h1><p class="section-desc">There's more than one way to watch a movie at FOX.</p><div class="formats-grid" style="margin-top:40px">${formatsCards()}</div></main>${footer()}`}
@@ -148,9 +182,37 @@ function checkoutDetails(){return `<h2>Your details</h2><form id="customerForm" 
 function checkoutPay(){return `<h2>Payment</h2><p class="muted">Review your booking and complete the test flow.</p><div class="pay-demo-box"><strong>DEMO PAYMENT MODE</strong><p class="small">No real banking gateway is connected. This button marks a sample booking as confirmed in the local server. No card data is collected.</p><p class="small">Total amount: <b>${money(fullTotal())}</b></p></div><p class="error" id="paymentError"></p>`}
 function checkoutPage(){const labels=['Summary','Details','Payment'];const remaining=state.expiresAt?Math.max(0,Math.floor((state.expiresAt-Date.now())/1000)):600;return `<main id="main-content" class="checkout-page"><div class="checkout-card"><div class="checkout-top"><button class="icon-btn" data-action="back-to-seats" aria-label="Back to seats">‹</button><h1>Complete your booking</h1><span class="timer" id="timer">◷ ${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}</span></div><div class="checkout-steps">${labels.map((x,i)=>`<span class="${state.step===i+1?'on':''}">${i+1}. ${x}</span>`).join('')}</div><div class="checkout-body">${state.step===1?`<h2>Booking summary</h2>${checkoutSummary()}`:state.step===2?checkoutDetails():checkoutPay()}</div><div class="checkout-footer"><button class="btn btn-outline" data-action="checkout-back">‹ &nbsp; Back</button><button class="btn btn-white" data-action="checkout-next">${state.step===1?'Continue to details':state.step===2?'Continue to payment':`Confirm demo payment · ${money(fullTotal())}`} &nbsp; →</button></div></div></main>`}
 function ticketPage(){const b=state.ticket;if(!b)return `<div class="ticket-view"><div class="ticket-paper"><h1>No ticket loaded</h1><a class="btn btn-white" href="#/movies">Explore movies</a></div></div>`;return `<main class="ticket-view" id="main-content"><div class="ticket-paper"><div class="label">FOX CINEMA</div><h1>You're going to the movies!</h1><p class="stamp">DEMO BOOKING CONFIRMED</p><p>${currFilm().title}</p><div class="ticket-row"><span>Cinema</span><b>${currCinema().name}</b></div><div class="ticket-row"><span>Date & time</span><b>${formatDate(state.dateOffset)} · ${state.time}</b></div><div class="ticket-row"><span>Seats</span><b>${[...state.selected].join(', ')}</b></div><div class="ticket-row"><span>Total</span><b>${money(fullTotal())}</b></div><div class="ticket-code">${b.ticketCode||b.bookingId}</div><p class="watermark">NOT VALID FOR REAL ADMISSION · NO MONEY CHARGED</p><div style="display:flex;justify-content:center;gap:10px;margin-top:20px"><button class="btn btn-white" data-action="print-ticket">Print</button><a href="#/home" class="btn btn-dark">Back to home</a></div></div></main>`}
+const trailerRequests=new Map();
+async function ensureOfficialTrailer(movie){
+ if(!movie)return null;
+ if(/^[A-Za-z0-9_-]{11}$/.test(movie.trailer||''))return movie.trailer;
+ if(!trailerRequests.has(movie.id))trailerRequests.set(movie.id,(async()=>{
+  const query=movie.isLive?`type=${encodeURIComponent(movie.mediaType==='tv'?'tv':'movie')}&id=${encodeURIComponent(movie.tmdbId)}`:`curated=${encodeURIComponent(movie.id)}`;
+  const r=await fetch('/api/trailer?'+query,{cache:'default'});
+  if(!r.ok)throw Error(r.status===503?'TMDb API is not yet available':'Trailer lookup failed');
+  const data=await r.json();
+  if(/^[A-Za-z0-9_-]{11}$/.test(data.trailer||'')){movie.trailer=data.trailer;return movie.trailer;}
+  return null;
+ })().catch(err=>{trailerRequests.delete(movie.id);throw err}));
+ return trailerRequests.get(movie.id);
+}
+async function openMovieTrailer(){
+ const movie=currFilm(),id=movie.id;
+ state.trailerOpen=true;state.trailerError='';state.trailerLoading=!movie.trailer;render();
+ if(movie.trailer)return;
+ try{await ensureOfficialTrailer(movie)}catch(err){state.trailerError=err.message;}
+ if(state.trailerOpen&&currFilm().id===id){state.trailerLoading=false;render();}
+}
 function overlays(){let html='';if(state.searchOpen)html+=`<div class="search-overlay" data-action="overlay-dismiss"><div class="dialog"><div class="dialog-head"><h2>Search FOX</h2><button class="icon-btn" data-action="search-close">×</button></div><input id="globalSearch" placeholder="${t('search')}" autocomplete="off" autofocus/><div class="suggestions" id="searchResults">${movies.slice(0,5).map(m=>`<a href="#/movie/${m.id}" data-action="modal-nav">${m.title} &nbsp; <span class="muted small">${labelGenre(m.genre)}</span></a>`).join('')}</div></div></div>`;
  if(state.authOpen)html+=`<div class="auth-overlay" data-action="overlay-dismiss"><div class="dialog"><div class="dialog-head"><h2>${state.account?'My account':state.authMode==='login'?'Sign in':'Create an account'}</h2><button class="icon-btn" data-action="auth-close">×</button></div>${state.account?`<p>Signed in as ${esc(state.account.name)} (${esc(state.account.email)})</p><button class="btn btn-outline" data-action="logout">Sign out</button>`:`<form id="authForm">${state.authMode==='register'?`<input id="authName" placeholder="Full name" required minlength="2"/>`:''}<input id="authEmail" placeholder="Email address" type="email" required/><input id="authPass" placeholder="Password" type="password" minlength="8" required/><p class="error" id="authError"></p><button class="btn btn-white" type="submit">${state.authMode==='login'?'Sign in':'Register'}</button></form><p class="hint">${state.authMode==='login'?'New here?':'Already have an account?'} <button class="pill" data-action="auth-toggle">${state.authMode==='login'?'Create account':'Sign in'}</button></p>`}<p class="hint">Accounts in this recreation are stored in a local demo database, not the original service.</p></div></div>`;
- if(state.trailerOpen)html+=`<div class="trailer-overlay" data-action="overlay-dismiss"><div class="dialog"><div class="dialog-head"><h2>Trailer</h2><button class="icon-btn" data-action="trailer-close">×</button></div>${currFilm().trailer?`<div class="trailer-embed"><iframe src="https://www.youtube-nocookie.com/embed/${currFilm().trailer}?autoplay=1&mute=1&playsinline=1" title="Official trailer" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>`:`<div class="page-art" style="min-height:255px">${moviePoster(currFilm())}</div><p class="muted">No verified official trailer is available for this title yet.</p>`}<button class="btn btn-white" data-action="trailer-close">Close</button></div></div>`;
+ if(state.trailerOpen){
+  const movie=currFilm(),key=/^[A-Za-z0-9_-]{11}$/.test(movie.trailer||'')?movie.trailer:null;
+  const media=state.trailerLoading?`<div class="trailer-loading" role="status">${state.lang==='ar'?'جارٍ البحث عن الإعلان الرسمي…':'Finding the official trailer…'}</div>`:
+   key?`<div class="trailer-embed"><iframe src="https://www.youtube-nocookie.com/embed/${key}?autoplay=1&mute=0&playsinline=1&rel=0" title="${esc(movie.title)} official trailer" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div><a class="btn btn-outline trailer-direct" href="https://www.youtube.com/watch?v=${key}" target="_blank" rel="noopener noreferrer">${state.lang==='ar'?'مشاهدة الإعلان على يوتيوب ↗':'Watch official trailer on YouTube ↗'}</a>`:
+   `<div class="trailer-empty">${moviePoster(movie)}<p>${state.lang==='ar'?'لا يوجد إعلان رسمي موثّق لهذا الفيلم حاليًا.':'No verified official trailer is available for this film yet.'}</p>${state.trailerError?`<small>${esc(state.trailerError)}</small>`:''}</div>`;
+  html+=`<div class="trailer-overlay" data-action="overlay-dismiss"><div class="dialog trailer-dialog"><div class="dialog-head"><h2>${esc(movieName(movie))} — ${t('trailer')}</h2><button class="icon-btn" data-action="trailer-close" aria-label="Close">×</button></div>${media}<button class="btn btn-white" data-action="trailer-close">${state.lang==='ar'?'إغلاق':'Close'}</button></div></div>`;
+ }
+
  return html;
 }
 let revealObserver=null;
@@ -230,7 +292,7 @@ function render(){const r=router();if(heroClock){clearInterval(heroClock);heroCl
  const canvas=$('#theaterCanvas');if(!canvas||router()!=='3d')return;
  const overlay=document.createElement('div');overlay.className='theater-loading';overlay.textContent=state.lang==='ar'?'بنجهّز القاعة السينمائية...':'Preparing cinematic auditorium…';canvas.parentElement.appendChild(overlay);
  try{
-   const {TheaterThree}=await import('./theater-three.js');
+   const [{TheaterThree}]=await Promise.all([import('./theater-three.js'),ensureOfficialTrailer(currFilm()).catch(()=>null)]);
    if(router()!=='3d'||!canvas.isConnected)return;
    renderer=new TheaterThree(canvas,undefined,state.movieId);
  }catch(error){
@@ -262,7 +324,7 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-act
  case 'logout':await api('/api/logout','POST',{});state.account=null;state.authOpen=false;render();break;
  case 'overlay-dismiss':if(e.target===el){state.searchOpen=false;state.authOpen=false;state.trailerOpen=false;render()}break;
  case 'modal-nav':state.searchOpen=false;state.authOpen=false;break;
- case 'trailer-open':if(router()==='home')state.movieId=movies[state.hero%5].id;state.trailerOpen=true;render();break;
+ case 'trailer-open':if(router()==='home')state.movieId=movies[state.hero%5].id;await openMovieTrailer();break;
  case 'trailer-close':state.trailerOpen=false;render();break;
  case 'open-movie':if(e.target.closest('a'))break;routeTo('movie/'+id);break;
  case 'book-movie':if(getMovie(id).coming||getMovie(id).isLive){toast(state.lang==='ar'?'هذا الفيلم قريباً، والحجز غير متاح بعد.':'Coming soon — booking is not open yet.');break;}state.movieId=id;state.cinemaId='city-centre-alexandria';state.dateOffset=2;routeTo('movie/'+id);setTimeout(()=>$('#showtimes')?.scrollIntoView({behavior:'smooth'}),100);break;
@@ -309,14 +371,23 @@ window.addEventListener('hashchange',()=>{state.searchOpen=state.authOpen=state.
 try{const response=await api('/api/me');state.account=response.account}catch{}
 if(!location.hash)location.hash='#/home';else{render();if(router().startsWith('seats/'))loadTaken()}
 async function refreshPublicCatalogue(){
+ let snapshot=null;
  try{
-  const hour=Math.floor(Date.now()/3600000);
-  const r=await fetch(`/data/entertainment.json?h=${hour}`,{cache:'no-store'});
-  if(!r.ok)throw Error(`HTTP ${r.status}`);
-  const snapshot=await r.json();const lastUpdate=state.catalogueUpdated;const res=mergeCatalogue(movies,snapshot);
-  state.catalogueUpdated=res.generatedAt;state.catalogueCount=snapshot.count||res.added;
-  if((router()==='movies'||router().startsWith('movie/'))&&(res.added||res.updated||(res.generatedAt&&res.generatedAt!==lastUpdate)))render();
- }catch(e){console.info('TMDb snapshot not yet available; curated demo catalogue retained.',e.message);}
+  const response=await fetch('/api/catalog',{cache:'default',headers:{Accept:'application/json'}});
+  if(!response.ok)throw Error('Vercel API '+response.status);
+  snapshot=await response.json();
+ }catch(e){
+  // Keep backward compatibility with the old static snapshot, and never blank the UI.
+  try{
+   const backup=await fetch('/data/entertainment.json',{cache:'default'});
+   if(backup.ok)snapshot=await backup.json();
+  }catch{}
+ }
+ if(!snapshot||!Array.isArray(snapshot.titles))return;
+ const previous=state.catalogueUpdated;
+ const res=mergeCatalogue(movies,snapshot);
+ state.catalogueUpdated=res.generatedAt;state.catalogueCount=snapshot.count||res.added;
+ if((router()==='movies'||router().startsWith('movie/'))&&(res.added||res.updated||(res.generatedAt&&res.generatedAt!==previous)))render();
 }
 refreshPublicCatalogue();const catalogueClock=setInterval(refreshPublicCatalogue,3600000);catalogueClock.unref?.();
 
