@@ -357,7 +357,7 @@ function render(){const r=router();if(!r.startsWith('movie/'))state.detailMovieI
    }
  }finally{overlay.remove();}
  if(renderer&&router()==='3d')renderer.setSeat(state.viewer,false);
-});if(r==='3d'){setHudOpen(false);}if(r==='checkout'){ticker=setInterval(updateTimer,1000);updateTimer()}if(state.searchOpen)$('#globalSearch')?.focus();requestAnimationFrame(installCinematicMotion);if(r==='home')startHeroClock();}
+});if(r==='3d'){setHudOpen(!window.matchMedia('(max-width:720px)').matches);}if(r==='checkout'){ticker=setInterval(updateTimer,1000);updateTimer()}if(state.searchOpen)$('#globalSearch')?.focus();requestAnimationFrame(installCinematicMotion);if(r==='home')startHeroClock();}
 function setHudOpen(next){
  const page=document.querySelector('.theater-page');
  const panel=document.getElementById('theaterHud');
@@ -365,15 +365,15 @@ function setHudOpen(next){
  if(!page||!panel||!toggle)return;
  const mobile=window.matchMedia('(max-width:720px)').matches;
  const wasOpen=state.hudOpen;
- state.hudOpen=mobile&&Boolean(next);
+ state.hudOpen=Boolean(next);
  page.classList.toggle('hud-open',state.hudOpen);
  toggle.setAttribute('aria-expanded',String(state.hudOpen));
  toggle.setAttribute('aria-label',state.lang==='ar'?(state.hudOpen?'إخفاء تفاصيل المقعد':'عرض تفاصيل المقعد'):(state.hudOpen?'Hide seat details':'Show seat details'));
  const copy=toggle.querySelector('.hud-toggle-copy');if(copy)copy.textContent=state.lang==='ar'?(state.hudOpen?'إغلاق':'التفاصيل'):(state.hudOpen?'Close':'Details');
  const arrow=toggle.querySelector('.hud-toggle-chevron');if(arrow)arrow.textContent=state.hudOpen?'›':'‹';
  if(!state.hudOpen&&wasOpen&&panel.contains(document.activeElement))toggle.focus({preventScroll:true});
- panel.inert=mobile&&!state.hudOpen;
- panel.setAttribute('aria-hidden',String(mobile&&!state.hudOpen));
+ panel.inert=!state.hudOpen;
+ panel.setAttribute('aria-hidden',String(!state.hudOpen));
  if(mobile&&state.hudOpen&&!wasOpen)requestAnimationFrame(()=>panel.querySelector('.hud-dismiss')?.focus({preventScroll:true}));
 }
 function updateTimer(){const el=$('#timer');if(!el)return;const seconds=Math.max(0,Math.floor(((state.expiresAt||Date.now()+600000)-Date.now())/1000));el.textContent=`◷ ${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;el.classList.toggle('warning',seconds<60);if(seconds===0){clearInterval(ticker);toast('Your seats were released. Please select seats again.');state.holdId=null;routeTo('seats/'+state.movieId)}}
