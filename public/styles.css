@@ -689,3 +689,92 @@ html[data-fox-route="theater"] .theater-page .seat-view-label{animation:fox-cine
   }
   .theater-page .theater-controls > .theater-audio-btn > span {font-size:10px!important}
 }
+
+
+/* FOX Cinema — compact, evenly sized viewer controls + desktop HUD drawer. */
+@media (min-width:721px) {
+  .theater-page .theater-controls {
+    width:min(510px,calc(100vw - 48px))!important;
+    max-width:calc(100vw - 48px)!important;
+    gap:7px!important;
+    left:16px!important;
+    bottom:18px!important;
+  }
+  .theater-page .theater-controls > span,
+  .theater-page .theater-controls > button,
+  .theater-page .theater-controls > .theater-audio-btn {
+    min-height:36px!important;
+    height:36px!important;
+    padding:5px 8px!important;
+    font-size:10px!important;
+    border-radius:9px!important;
+    gap:5px!important;
+  }
+  .theater-page .hud {
+    right:18px!important;
+    left:auto!important;
+    max-width:calc(100vw - 70px)!important;
+    transform:translateX(calc(100% + 58px))!important;
+    opacity:0;
+    visibility:hidden;
+    pointer-events:none;
+    animation:none!important;
+    transition:transform .32s cubic-bezier(.22,.65,.19,1),opacity .22s,visibility 0s .32s!important;
+  }
+  .theater-page.hud-open .hud {
+    transform:translateX(0)!important;
+    opacity:1;
+    visibility:visible;
+    pointer-events:auto;
+    transition:transform .32s cubic-bezier(.22,.65,.19,1),opacity .22s,visibility 0s!important;
+  }
+  .theater-page .hud-toggle {
+    display:flex!important;
+    box-sizing:border-box;
+    position:absolute;
+    top:50%;
+    left:auto;
+    right:0;
+    z-index:10;
+    width:34px;
+    min-height:82px;
+    padding:8px 4px;
+    border:1px solid #494a53;
+    border-right:0;
+    border-radius:12px 0 0 12px;
+    color:#f5f5f8;
+    background:rgba(24,25,31,.95);
+    box-shadow:-5px 3px 18px #0008;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+    transform:translateY(-50%);
+    cursor:pointer;
+    transition:right .32s cubic-bezier(.22,.65,.19,1),background .2s;
+  }
+  .theater-page.hud-open .hud-toggle {right:344px;}
+  .theater-page .hud-toggle-chevron {font-size:22px;line-height:1}
+  .theater-page .hud-toggle-copy {writing-mode:vertical-rl;font-size:9px;font-weight:700;letter-spacing:.04em}
+  .theater-page .hud-toggle:hover {background:#31323b}
+  .theater-page .hud-toggle:focus-visible {outline:2px solid #7dea9f;outline-offset:2px}
+}
+@media (max-width:720px) {
+  .theater-page .theater-controls {
+    width:min(360px,calc(100vw - 20px))!important;
+    max-width:calc(100vw - 20px)!important;
+    gap:5px!important;
+  }
+  .theater-page .theater-controls > span,
+  .theater-page .theater-controls > button,
+  .theater-page .theater-controls > .theater-audio-btn {
+    height:40px!important;min-height:40px!important;
+    padding:4px 5px!important;
+    font-size:9px!important;
+    border-radius:9px!important;
+    gap:4px!important;
+  }
+}
+@media (prefers-reduced-motion:reduce) {
+  .theater-page .hud,.theater-page .hud-toggle {transition:none!important}
+}
