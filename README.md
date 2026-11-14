@@ -61,7 +61,7 @@ Actual feature availability can depend on TMDb records, external poster hosts, Y
 | Arabic | **Alexandria** | Main Arabic UI and headings |
 | Arabic | **Aref Ruqaa** | Decorative Arabic emphasis in other headings |
 | Arabic | **IBM Plex Sans Arabic**, **Noto Naskh Arabic** | Arabic alternatives and fallback typography |
-| Arabic decorative headline accents | **Lyon Arabic Slanted Display Light** (Commercial Type) | Vector art for «الآن», «المشاهدة», «الأفلام», «المسلسلات» and other highlighted Arabic words in `public/assets/lyon-*.svg`; **no commercial font file is bundled or redistributed** |
+| Arabic decorative headline accents | **Lyon Arabic Slanted Display Light** (Commercial Type) | Vector art for «الآن», «المشاهدة», «الأفلام», «المسلسلات», «العروض», «السينما», «مسبقًا» and other highlighted Arabic words in `public/assets/lyon-*.svg`; **no commercial font file is bundled or redistributed** |
 
 Web fonts load from Google Fonts when available. Broader use of the commercial Lyon typeface as a hosted font requires the appropriate license.
 
