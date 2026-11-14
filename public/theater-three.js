@@ -19,7 +19,7 @@ function upholsteryGrain(){
  }x.putImageData(d,0,0);grainTexture=new THREE.CanvasTexture(c);
  grainTexture.wrapS=grainTexture.wrapT=THREE.RepeatWrapping;grainTexture.repeat.set(3,3);return grainTexture;
 }
-const leather=(color,roughness=.5)=>new THREE.MeshPhysicalMaterial({color,roughness,metalness:0,clearcoat:.32,clearcoatRoughness:.47,bumpMap:upholsteryGrain(),bumpScale:.017});
+const leather=(color,roughness=.5)=>new THREE.MeshPhysicalMaterial({color,roughness,metalness:0,clearcoat:.21,clearcoatRoughness:.57,bumpMap:upholsteryGrain(),bumpScale:.011});
 const mat=(color,roughness=.7,metalness=0)=>new THREE.MeshStandardMaterial({color,roughness,metalness});
 const color={charcoal:0x111217,coal:0x0c0e12,carpet:0x121216,wall:0x4d111c,red:0x651a24,trim:0xa94b4b,gold:0xe9ac78,rail:0x9ca8b3,step:0x75e6a7};
 function panelTexture(){
@@ -49,8 +49,8 @@ function createSeatInstances(scene,low=false){
  ];
  const groups={regular:layout.filter(s=>s.type!=='Premium'),premium:layout.filter(s=>s.type==='Premium')};
  const materials={
-  regular:{shell:leather(0x241a20),cushion:leather(0x321f27),head:leather(0x44303a),arm:leather(0x2b2229)},
-  premium:{shell:leather(0x1a1d25),cushion:leather(0x282c35),head:leather(0x343941),arm:leather(0x262a32)},
+  regular:{shell:leather(0x181b20,.62),cushion:leather(0x25272d,.54),head:leather(0x303139,.51),arm:leather(0x20232a,.58)},
+  premium:{shell:leather(0x171b23,.58),cushion:leather(0x272d36,.48),head:leather(0x353d45,.46),arm:leather(0x262b33,.55)},
   cup:mat(0x81909b,.24,.86),pedestal:mat(0x141519,.75,.25)};
  const dummy=new THREE.Object3D();
  for(const [kind,seats] of Object.entries(groups)){
@@ -100,23 +100,23 @@ function homography(q,W,H){
 }
 export class TheaterThree{
  constructor(canvas,onReady,movieId='godzilla-minus-zero'){
-  this.canvas=canvas;this.movie=getMovie(movieId);this.disposed=false;this.selected='G9';this.yaw=0;this.pitch=0;this.fov=72;this.currentEye=v(0,20.8,38);this.currentTarget=v(0,4.7,9);
+  this.canvas=canvas;this.movie=getMovie(movieId);this.disposed=false;this.selected='G9';this.yaw=0;this.pitch=0;this.fov=58;this.currentEye=v(0,20.8,38);this.currentTarget=v(0,4.7,9);
   this.destEye=this.currentEye.clone();this.destTarget=this.currentTarget.clone();this.entry=true;this.pointer=null;this.tween=null;
   const isMobile=window.innerWidth<760,low=isMobile||(navigator.deviceMemory&&navigator.deviceMemory<=4);
   this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
-  this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.22;
-  this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,low?1.65:2));this.renderer.setClearColor(0x050507);
+  this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.34;
+  this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,low?1.45:1.9));this.renderer.setClearColor(0x050507);
   this.scene=new THREE.Scene();this.scene.background=new THREE.Color(0x060608);this.scene.fog=new THREE.FogExp2(0x09090d,.007);
-  this.camera=new THREE.PerspectiveCamera(72,1,.16,110);
-  this.scene.add(new THREE.HemisphereLight(0x7790b7,0x381d27,1.05));this.scene.add(new THREE.AmbientLight(0x8890a6,.23));
+  this.camera=new THREE.PerspectiveCamera(58,1,.16,110);
+  this.scene.add(new THREE.HemisphereLight(0x94aed1,0x411c26,1.12));this.scene.add(new THREE.AmbientLight(0x98a0b5,.25));
   this.buildAuditorium(low);createSeatInstances(this.scene,low);
   this.buildScreen();this.loadPoster();
   this.setupOverlay();this.attachInput();this.setSeat('G9');this.resize();
   this.frame=this.frame.bind(this);this.raf=requestAnimationFrame(this.frame);onReady?.();
  }
  buildAuditorium(low){const s=this.scene;
-  const wall=mat(0x581723,.88),fabric=new THREE.MeshStandardMaterial({map:panelTexture(),color:0xe4d3d6,roughness:.91});
-  const floor=mat(0x19181b,.94),trim=mat(0xac5b58,.48,.28),edge=mat(0xa4b4be,.27,.78),black=mat(0x0c0e12,.83),carpet=mat(0x121316,.96);
+  const wall=mat(0x651b27,.92),fabric=new THREE.MeshStandardMaterial({map:panelTexture(),color:0xe4d3d6,roughness:.91});
+  const floor=mat(0x19181b,.94),trim=mat(0xc57768,.38,.35),edge=mat(0xa4b4be,.27,.78),black=mat(0x0c0e12,.83),carpet=mat(0x121316,.96);
   box(s,31,.45,52,floor,0,-.8,18);box(s,30,1.2,2.8,black,0,.52,-2.2);
   box(s,31,.4,53,black,0,12.7,19);
   for(const side of [-1,1]){
@@ -139,7 +139,7 @@ export class TheaterThree{
    const z=-1+i*4.5;box(s,31,.65,.65,black,0,12.30,z);
    box(s,29,.05,.14,mat(0x343039,.55),0,11.96,z+.4);
    for(let x=-12;x<=12;x+=6){
-    const bulb=new THREE.Mesh(new THREE.SphereGeometry(.12,8,6),new THREE.MeshBasicMaterial({color:0xffd6a6,toneMapped:false}));bulb.position.set(x,11.93,z+.43);s.add(bulb);
+    const bulb=new THREE.Mesh(new THREE.SphereGeometry(.12,8,6),new THREE.MeshBasicMaterial({color:0xffd6b2,toneMapped:false}));bulb.position.set(x,11.93,z+.43);s.add(bulb);
     if(i%3===0&&(x===-6||x===6)){const p=new THREE.PointLight(0xffd4a2,low?.50:.62,13,2.2);p.position.set(x,11.75,z+.43);s.add(p);}
    }
   }
@@ -158,7 +158,7 @@ export class TheaterThree{
   box(s,25.7,10.6,.25,mat(0x181b20,.65),0,6.68,-4.32);
   for(const x of [-12.72,12.72])box(s,.13,10.7,.20,edge,x,6.7,-4.15);
   for(const y of [1.41,11.97])box(s,25.5,.12,.2,edge,0,y,-4.14);
-  for(const x of [-4,4]){const projector=new THREE.SpotLight(0xa4bfdc,low?25:37,52,1.04,.84,1);projector.position.set(x,9.0,-4.2);projector.target.position.set(x/2,1.9,13);s.add(projector,projector.target);}
+  for(const x of [-4,4]){const projector=new THREE.SpotLight(0xb9cff1,low?31:44,52,1.04,.84,1);projector.position.set(x,9.0,-4.2);projector.target.position.set(x/2,1.9,13);s.add(projector,projector.target);}
   // The floor and railings are three-dimensional round metal (no flat polygons).
   for(const z of [11,21,30])for(const x of [-7.64,7.64]){
    const y=(z-5)*.145+1.25;
@@ -167,7 +167,7 @@ export class TheaterThree{
    for(let j=0;j<5;j++){let zz=z+j*1.1;pipe(s,[x,y-1.22,zz],[x,y,zz],.032,edge,10);}
   }
   for(let x=-13;x<13;x+=2.5){pipe(s,[x,1.28,-1.15],[x+2.5,1.28,-1.15],.035,edge,14);pipe(s,[x,.36,-1.15],[x,1.28,-1.15],.025,edge,10);}
-  const p=new THREE.PointLight(0xa4bfff,low?2.1:3.7,42,1.5);p.position.set(0,8,-2.8);s.add(p);
+  const p=new THREE.PointLight(0xa4c4f6,low?3.6:5.2,42,1.55);p.position.set(0,8,-2.8);s.add(p);this.screenSpill=p;this.screenSpillBase=p.intensity;
  }
  buildScreen(){
   const material=new THREE.MeshBasicMaterial({toneMapped:false,side:THREE.DoubleSide});
@@ -186,7 +186,7 @@ export class TheaterThree{
   if(this.movie.trailer&&/^[A-Za-z0-9_-]{11}$/.test(this.movie.trailer)){
    this.timer=setTimeout(()=>{if(this.disposed)return;
     this.overlay.innerHTML='<div class="theater-video-black"></div>';
-    this.overlay.style.display='block';this.overlay.classList.add('theater-video-enter');
+    this.overlay.style.display='block';this.overlay.classList.add('theater-video-enter');this.trailerActive=true;
     this.videoTimer=setTimeout(()=>{if(this.disposed)return;
       const frame=document.createElement('iframe');frame.title=`${this.movie.title} — Official trailer`;
       frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';frame.referrerPolicy='strict-origin-when-cross-origin';
@@ -210,15 +210,15 @@ export class TheaterThree{
  setSeat(id,immediate=false){const s=getSeat(id);if(!s)return;this.selected=id;
   const eye=v(s.x,s.y+2.07,s.z+.15),look=v(0,6.5,-4);this.destEye=eye;this.destTarget=look;
   if(immediate||reduced()){this.currentEye.copy(eye);this.currentTarget.copy(look);this.entry=false;this.tween=null;}
-  else this.tween={fromEye:this.currentEye.clone(),fromTarget:this.currentTarget.clone(),toEye:eye,toTarget:look,started:performance.now(),duration:this.entry?1650:1100,fromFov:this.fov,toFov:72,isEntry:this.entry};
+  else this.tween={fromEye:this.currentEye.clone(),fromTarget:this.currentTarget.clone(),toEye:eye,toTarget:look,started:performance.now(),duration:this.entry?1650:1100,fromFov:this.fov,toFov:58,isEntry:this.entry};
   this.yaw=0;this.pitch=0;
  }
- reset(){this.yaw=0;this.pitch=0;this.fov=72;}
+ reset(){this.yaw=0;this.pitch=0;this.fov=58;}
  attachInput(){
   this.down=e=>{if(e.button!==0)return;this.pointer=[e.clientX,e.clientY];this.canvas.setPointerCapture(e.pointerId)};
   this.move=e=>{if(!this.pointer)return;this.yaw=clamp(this.yaw+(e.clientX-this.pointer[0])*.003,-.72,.72);this.pitch=clamp(this.pitch+(e.clientY-this.pointer[1])*.003,-.40,.42);this.pointer=[e.clientX,e.clientY];};
   this.up=()=>this.pointer=null;
-  this.wheel=e=>{e.preventDefault();this.fov=clamp(this.fov+e.deltaY*.019,43,100)};
+  this.wheel=e=>{e.preventDefault();this.fov=clamp(this.fov+e.deltaY*.019,42,95)};
   this.canvas.addEventListener('pointerdown',this.down);this.canvas.addEventListener('pointermove',this.move);this.canvas.addEventListener('pointerup',this.up);this.canvas.addEventListener('pointercancel',this.up);this.canvas.addEventListener('wheel',this.wheel,{passive:false});
   this.onResize=()=>this.resize();window.addEventListener('resize',this.onResize);
  }
@@ -233,9 +233,14 @@ export class TheaterThree{
   const look=this.currentTarget.clone();const dist=look.distanceTo(this.camera.position);
   look.x+=Math.sin(this.yaw)*dist*.28;look.y+=Math.sin(this.pitch)*dist*.25;
   this.camera.fov=this.fov;this.camera.updateProjectionMatrix();this.camera.lookAt(look);
-  this.renderer.render(this.scene,this.camera);this.updateOverlay();this.raf=requestAnimationFrame(this.frame);
+  // Motion is deliberately restrained: an approximate screen-color bounce
+  // while a trailer runs. Cross-origin YouTube frames cannot be sampled.
+  if(this.screenSpill) this.screenSpill.intensity=this.screenSpillBase*
+      (this.trailerActive ? (1+.10*Math.sin(t*.0013)+.07*Math.sin(t*.0031)) : 1);
+  if(document.visibilityState!=='hidden'){this.renderer.render(this.scene,this.camera);this.updateOverlay();}
+  this.raf=requestAnimationFrame(this.frame);
  }
- dispose(){this.disposed=true;cancelAnimationFrame(this.raf);clearTimeout(this.timer);clearTimeout(this.videoTimer);clearTimeout(this.infoTimeout);
+ dispose(){this.disposed=true;cancelAnimationFrame(this.raf);clearTimeout(this.timer);clearTimeout(this.videoTimer);clearTimeout(this.videoRevealTimer);clearTimeout(this.infoTimeout);
   this.overlay?.remove();this.info?.remove();window.removeEventListener('resize',this.onResize);
   this.canvas.removeEventListener('pointerdown',this.down);this.canvas.removeEventListener('pointermove',this.move);this.canvas.removeEventListener('pointerup',this.up);this.canvas.removeEventListener('pointercancel',this.up);this.canvas.removeEventListener('wheel',this.wheel);
   grainTexture?.dispose?.();grainTexture=null;this.scene.traverse(obj=>{obj.geometry?.dispose?.();if(obj.material){const a=Array.isArray(obj.material)?obj.material:[obj.material];for(const m of a){m.map?.dispose?.();m.dispose?.();}}});this.renderer.dispose();

@@ -193,3 +193,109 @@ html[data-fox-route="theater"] .theater-page .seat-view-label{animation:fox-cine
 .trailer-dialog .trailer-direct{margin-top:15px;display:flex;border-color:#5f5360}
 .trailer-dialog .trailer-embed{border:1px solid #413943;box-shadow:0 18px 38px #000c}
 @media(max-width:720px){.trailer-overlay{padding:10px}.trailer-overlay .trailer-dialog{max-height:calc(100dvh - 20px)}.trailer-loading{min-height:170px}}
+
+
+/* ==========================================================================
+   FOX CINEMA V9 — unified desktop discovery toolbar, consistent controls,
+   true-aspect movie projection, comfortable RTL and scalable mobile layouts.
+   ========================================================================== */
+:root{--fox-control-height:46px;--fox-control-radius:15px}
+.movies-page.container{width:min(1490px,calc(100% - 64px))}
+.movies-page .filters-wide{
+  display:grid;
+  grid-template-columns:max-content minmax(0,1fr);
+  align-items:center;
+  gap:clamp(12px,1.4vw,24px);
+  margin-block:30px 30px;
+  padding-bottom:24px;
+}
+.movies-page .seg{
+  display:flex;flex-wrap:nowrap;align-items:stretch;gap:2px;
+  height:var(--fox-control-height);min-width:0;width:max-content;
+  max-width:none;padding:3px;border-radius:var(--fox-control-radius);
+}
+.movies-page .seg button{
+  flex:0 0 auto;white-space:nowrap;min-height:38px;
+  padding:0 clamp(10px,1vw,16px);
+  font-size:clamp(11px,.8vw,13px);font-weight:600;line-height:1.2;
+  border-radius:12px;transition:background .23s,color .23s,transform .23s;
+}
+.movies-page .seg button:hover:not(.on){color:#fff;background:#29272c}
+.movies-page .filter-bar{
+  display:grid;grid-template-columns:minmax(150px,1.4fr) repeat(3,minmax(110px,1fr));
+  gap:10px;align-items:center;min-width:0;flex-wrap:nowrap;
+}
+.movies-page .filter-search,.movies-page .filter-select{
+  appearance:none;-webkit-appearance:none;min-width:0;width:100%;
+  height:var(--fox-control-height);padding:0 15px;border:1px solid #343139;
+  border-radius:var(--fox-control-radius);background:#151417;color:#eee;
+  line-height:1.2;font-size:13px;font-weight:500;
+  transition:border-color .24s,box-shadow .24s,background .24s;
+}
+.movies-page .filter-search:hover,.movies-page .filter-select:hover{border-color:#695661;background:#1d1920}
+.movies-page .filter-search:focus,.movies-page .filter-select:focus{
+  outline:none;border-color:#e3449f;box-shadow:0 0 0 3px #cf007129;
+}
+.movies-page .filter-select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m7 10 5 5 5-5' fill='none' stroke='%23ccc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-size:15px 15px;
+  background-position:right 12px center;padding-right:35px;cursor:pointer;
+}
+[dir=rtl] .movies-page .filter-select{background-position:left 12px center;padding:0 15px 0 35px}
+.nav-actions .header-lang,.nav-actions .header-signin{
+  min-height:42px;display:inline-flex;align-items:center;justify-content:center;
+  padding:0 16px;line-height:1.2;
+}
+.nav-actions .nav-icon{width:40px;height:42px;display:grid;place-items:center;border-radius:50%}
+.nav-actions .nav-icon:hover{background:#242228}
+.movie-card .poster-wrap{aspect-ratio:2/3;isolation:isolate;box-shadow:inset 0 0 0 1px #ffffff0d}
+.movie-card .poster-wrap img{width:100%;height:100%;object-fit:cover}
+.movie-card .movie-title{min-height:1.65em;line-height:1.45}
+.movie-card .movie-sub{min-height:1.5em}
+[dir=rtl] .movies-page .filter-search{text-align:right}
+[dir=rtl] .movies-page .seg{direction:rtl}
+[dir=rtl] .nav-actions .header-lang,[dir=rtl] .nav-actions .header-signin{letter-spacing:0}
+@media(max-width:1360px) and (min-width:1101px){
+  .movies-page.container{width:calc(100% - 38px)}
+  .movies-page .filters-wide{gap:10px}
+  .movies-page .seg button{font-size:11px;padding:0 9px}
+  .movies-page .filter-bar{gap:7px;grid-template-columns:minmax(135px,1.4fr) repeat(3,minmax(95px,1fr))}
+  .movies-page .filter-search,.movies-page .filter-select{padding-left:10px;padding-right:25px;font-size:12px}
+}
+@media(max-width:1100px){
+  .movies-page .filters-wide{display:flex;flex-direction:column;align-items:stretch;gap:13px}
+  .movies-page .seg{width:100%;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#5b505a transparent}
+  .movies-page .filter-bar{display:grid;grid-template-columns:minmax(150px,1.7fr) repeat(3,minmax(100px,1fr))}
+}
+@media(max-width:700px){
+  .movies-page.container{width:calc(100% - 34px)}
+  .movies-page .filters-wide{gap:12px;margin-top:21px}
+  .movies-page .seg{height:46px;border-radius:14px}
+  .movies-page .filter-bar{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px}
+  .movies-page .filter-search{grid-column:1/-1}
+  .movies-page .filter-select{min-width:0}
+  .movies-page .filter-select:last-child{grid-column:1/-1}
+}
+.theater-screen-video{
+  --fox-frame-width:1280px;--fox-frame-height:520px;
+  width:var(--fox-frame-width);height:var(--fox-frame-height);
+  background:#020305;overflow:hidden;backface-visibility:hidden;
+  box-shadow:0 0 32px #9ab8fd20,0 0 75px #477aaf12;
+}
+.theater-screen-video iframe.theater-trailer-iframe{
+  /* 16:9 video projected over a 32:13 screen: crop the top/bottom, NEVER stretch */
+  position:absolute!important;left:0!important;top:-100px!important;
+  width:1280px!important;height:720px!important;max-width:none!important;
+  border:0;display:block;background:#000;transform:none!important;
+}
+.theater-screen-video .theater-video-black{z-index:5;transition:opacity .85s cubic-bezier(.3,.05,.25,1)}
+.theater-screen-video:after{
+  content:"";position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:linear-gradient(180deg,#cbdcf607,transparent 17%,transparent 82%,#9bb6eb0a);
+  box-shadow:inset 0 0 34px 15px #0005;
+}
+.theater-page .theater-vignette{pointer-events:none}
+@media(prefers-reduced-motion:reduce){
+ .movies-page .seg button,.movies-page .filter-search,.movies-page .filter-select{transition:none}
+ .theater-screen-video .theater-video-black{transition:none}
+}
