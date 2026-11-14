@@ -1,9 +1,7 @@
-FOX CINEMA V12 — Reactive Screen Lighting
-Local static + unit + booking/API suite: 51/51 PASS
-Commands:
-  node --check public/theater-three.js
-  node --check public/screen-lighting.js
-  npm test
-Mode A — same-origin licensed MP4/WebM: 3-zone actual-frame color probe every 140ms desktop / 280ms low-power.
-Mode B — YouTube embedded trailer: artwork-based approximate lighting only (no access to YouTube pixels).
-Safari on-device visual playback and live rendering: NOT VERIFIED by automated tests.
+FOX CINEMA V13 — Node test suite: 55 passed, 0 failed.
+Independent Chromium CSS viewport simulation:
+390x844: seat map 13 rows, no horizontal overflow, far right seat 381px (<390px)
+375x667: seat map 13 rows, no horizontal overflow, far right seat 366px (<375px)
+320x568: seat map 13 rows, no horizontal overflow, far right seat 311px (<320px)
+Full local browser navigation was blocked by ERR_BLOCKED_BY_ADMINISTRATOR.
+YouTube official player / WebGL / iOS Safari playback not verified end-to-end.

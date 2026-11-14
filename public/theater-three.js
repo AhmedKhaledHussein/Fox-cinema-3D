@@ -6,6 +6,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.m
 import {getMovie,getSeat,layout} from './catalog.js';
 import {screenProfile,normalizeScreenFormat,trailerEmbedUrl} from './theater-presets.js';
 import {ScreenFrameProbe,localTrailerPath,smoothLightSample} from './screen-lighting.js';
+import {loadYouTubeIFrameAPI,sampleTimedLight,lightTrackPath} from './youtube-light-sync.js';
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 const reduced=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches||false;
 const v=(x,y,z)=>new THREE.Vector3(x,y,z);
@@ -171,7 +172,7 @@ export class TheaterThree{
   this.buildAuditorium(low);createSeatInstances(this.scene,low);
   this.lowPower=Boolean(low);this.frameProbe=new ScreenFrameProbe(document);
   this.lightSample=null;this.smoothedLight=null;this.lastLightFrame=performance.now();
-  this.lightMode='artwork';this.trailerLocalVideo=null;this.videoTexture=null;this.trailerActive=false;
+  this.lightMode='artwork';this.trailerLocalVideo=null;this.videoTexture=null;this.trailerActive=false;this.youtubePlayer=null;this.youtubeClock=0;this.youtubeState='unstarted';this.youtubeLastPoll=0;this.youtubeLightTrack=null;
   this.lightFilmPalette=[];this.paletteIndex=0;this.lastPaletteChange=0;
   this.tempLightColors=[new THREE.Color(),new THREE.Color(),new THREE.Color()];
   this.buildScreen();this.loadPoster();this.loadBackdropPalette();
@@ -325,12 +326,56 @@ export class TheaterThree{
    frame.referrerPolicy='strict-origin-when-cross-origin';
    frame.src=trailerEmbedUrl(this.movie.trailer,{origin:location.origin,muted:true});
    frame.setAttribute('allowfullscreen','');frame.className='theater-trailer-iframe';
-   this.overlay.appendChild(frame);this.videoIframe=frame;
+   this.overlay.appendChild(frame);this.videoIframe=frame;this.attachYouTubeSync(frame);
    let revealed=false;
    const reveal=()=>{if(revealed||this.disposed)return;revealed=true;this.overlay.querySelector('.theater-video-black')?.classList.add('fade-out');};
    frame.addEventListener('load',()=>{if(this.soundEnabled)this.applySound(true);setTimeout(reveal,150);},{once:true});
    this.videoRevealTimer=setTimeout(reveal,2400);
   },530);
+ }
+ /** Attach the official timing/state API to the already embedded trailer.
+  * Failure leaves the normal YouTube iframe and audio button working.
+  */
+ attachYouTubeSync(iframe){
+  const disposed=()=>this.disposed||this.videoIframe!==iframe;
+  const trackPath=lightTrackPath(this.movie.lightTrackUrl);
+  if(trackPath){
+   fetch(trackPath,{cache:'force-cache'}).then(r=>r.ok?r.json():null).then(data=>{
+    if(disposed()||!Array.isArray(data?.keyframes)||data?.source!=='licensed-video-analysis')return;
+    this.youtubeLightTrack=data.keyframes.slice(0,2000);
+   }).catch(()=>{});
+  }
+  loadYouTubeIFrameAPI().then(YT=>{
+   if(disposed())return;
+   this.youtubePlayer=new YT.Player(iframe,{events:{
+    onReady:event=>{
+     if(disposed())return;
+     if(this.soundEnabled)event.target.unMute();else event.target.mute();
+    },
+    onStateChange:event=>{
+     if(disposed())return;
+     const code=event.data;
+     this.youtubeState=code===YT.PlayerState.PLAYING?'playing':
+       code===YT.PlayerState.PAUSED?'paused':code===YT.PlayerState.BUFFERING?'buffering':
+       code===YT.PlayerState.ENDED?'ended':'unstarted';
+     this.pollYouTubeClock(performance.now(),true);
+    },
+    onError:()=>{if(!disposed())this.youtubeState='unavailable';}
+   }});
+  }).catch(()=>{if(!this.disposed)this.youtubeState='unavailable';});
+ }
+ pollYouTubeClock(now,force=false){
+  if(!this.youtubePlayer||!this.trailerActive||this.lightMode!=='youtube-artwork')return;
+  if(!force&&now-this.youtubeLastPoll<(this.lowPower?280:170))return;
+  this.youtubeLastPoll=now;
+  try{
+   const seconds=this.youtubePlayer.getCurrentTime();
+   if(!Number.isFinite(seconds))return;
+   this.youtubeClock=seconds;
+   // No artificial time advance while paused. The palette follows the player clock.
+   const sample=sampleTimedLight(this.lightFilmPalette,seconds,this.youtubeLightTrack);
+   if(sample)this.lightSample=sample;
+  }catch{}
  }
  /** Prefer a legally-provided, same-origin MP4/WebM asset when the owner adds
   * one in /public/assets/trailers. It becomes a true Three.VideoTexture and the
@@ -373,6 +418,7 @@ export class TheaterThree{
  /** YouTube postMessage API is opt-in; unmuting requires explicit user action on Safari. */
  applySound(enabled){
   if(this.trailerLocalVideo){this.trailerLocalVideo.muted=!enabled;if(enabled)this.trailerLocalVideo.play().catch(()=>{});return true;}
+  if(this.youtubePlayer&&typeof this.youtubePlayer.mute==='function'){try{enabled?this.youtubePlayer.unMute():this.youtubePlayer.mute();if(enabled)this.youtubePlayer.playVideo();return true;}catch{}}
   if(!this.videoIframe?.contentWindow)return false;
   const command=func=>this.videoIframe.contentWindow.postMessage(JSON.stringify({event:'command',func,args:[]}), 'https://www.youtube-nocookie.com');
   command(enabled?'unMute':'mute');
@@ -402,12 +448,13 @@ export class TheaterThree{
   // YouTube embeds cannot be read. Keep only a *subtle* artwork-colour ambience,
   // not fake per-frame synchronization or abrupt, photosensitive flashes.
   const approximate=this.lightMode==='youtube-artwork';
-  if(approximate&&!reducedMotion&&this.lightFilmPalette.length>1&&t-this.lastPaletteChange>7200){
+  this.pollYouTubeClock(t);
+  if(approximate&&!this.youtubePlayer&&!reducedMotion&&this.lightFilmPalette.length>1&&t-this.lastPaletteChange>7200){
    this.lastPaletteChange=t;
    this.paletteIndex=(this.paletteIndex+1)%this.lightFilmPalette.length;
    this.lightSample=this.lightFilmPalette[this.paletteIndex];
   }
-  const pulse=approximate&&!reducedMotion ? (.94+.06*Math.sin(t*.0008)+.03*Math.sin(t*.0017)) : 1;
+  const pulse=approximate&&!reducedMotion&&!this.youtubePlayer ? (.94+.06*Math.sin(t*.0008)+.03*Math.sin(t*.0017)) : 1;
   this.smoothedLight=smoothLightSample(this.smoothedLight,this.lightSample,delta,reducedMotion);
   const sample=this.smoothedLight;
   const toColor=(index)=>{const rgb=sample.zones[index].color;return this.tempLightColors[index].setRGB(rgb[0],rgb[1],rgb[2],THREE.SRGBColorSpace);};
@@ -454,12 +501,12 @@ export class TheaterThree{
   const m=homography(projected.map(p=>p.slice(0,2)),1280,this.videoFrameHeight);if(m)this.overlay.style.transform=m;
  }
  setSeat(id,immediate=false){const s=getSeat(id);if(!s)return;this.selected=id;
-  const eye=v(s.x,s.y+2.02,s.z+.15),look=v(0,4.80,-4);this.destEye=eye;this.destTarget=look;
+  const mobile=window.innerWidth<=720;const eye=v(s.x,s.y+2.02,s.z+.15),look=v(0,mobile?6.15:4.80,-4);this.destEye=eye;this.destTarget=look;
   if(immediate||reduced()){this.currentEye.copy(eye);this.currentTarget.copy(look);this.entry=false;this.tween=null;}
-  else this.tween={fromEye:this.currentEye.clone(),fromTarget:this.currentTarget.clone(),toEye:eye,toTarget:look,started:performance.now(),duration:this.entry?1650:1100,fromFov:this.fov,toFov:(s.rowIndex<3?52:49),isEntry:this.entry};
+  else this.tween={fromEye:this.currentEye.clone(),fromTarget:this.currentTarget.clone(),toEye:eye,toTarget:look,started:performance.now(),duration:this.entry?1650:1100,fromFov:this.fov,toFov:(mobile?Math.max(66,Math.min(78,64+(.47-this.canvas.clientWidth/Math.max(1,this.canvas.clientHeight))*25)):(s.rowIndex<3?52:49)),isEntry:this.entry};
   this.yaw=0;this.pitch=0;
  }
- reset(){this.yaw=0;this.pitch=0;this.fov=50;}
+ reset(){this.yaw=0;this.pitch=0;this.fov=window.innerWidth<=720?70:50;}
  attachInput(){
   this.down=e=>{if(e.button!==0)return;this.pointer=[e.clientX,e.clientY];this.canvas.setPointerCapture(e.pointerId)};
   this.move=e=>{if(!this.pointer)return;this.yaw=clamp(this.yaw+(e.clientX-this.pointer[0])*.003,-.72,.72);this.pitch=clamp(this.pitch+(e.clientY-this.pointer[1])*.003,-.40,.42);this.pointer=[e.clientX,e.clientY];};
@@ -483,7 +530,7 @@ export class TheaterThree{
   if(document.visibilityState!=='hidden'){this.renderer.render(this.scene,this.camera);this.updateOverlay();}
   this.raf=requestAnimationFrame(this.frame);
  }
- dispose(){this.disposed=true;cancelAnimationFrame(this.raf);clearTimeout(this.timer);clearTimeout(this.videoTimer);clearTimeout(this.videoRevealTimer);clearTimeout(this.infoTimeout);clearTimeout(this.localVideoRevealTimer);this.videoIframe=null;clearTimeout(this.videoLoadTimeout);
+ dispose(){this.disposed=true;cancelAnimationFrame(this.raf);clearTimeout(this.timer);clearTimeout(this.videoTimer);clearTimeout(this.videoRevealTimer);clearTimeout(this.infoTimeout);clearTimeout(this.localVideoRevealTimer);this.videoIframe=null;try{this.youtubePlayer?.destroy?.();}catch{}this.youtubePlayer=null;clearTimeout(this.videoLoadTimeout);
   if(this.trailerLocalVideo){this.trailerLocalVideo.pause();this.trailerLocalVideo.removeAttribute('src');this.trailerLocalVideo.load();this.trailerLocalVideo=null;}
   this.videoTexture?.dispose();this.videoTexture=null;
   this.overlay?.remove();this.info?.remove();window.removeEventListener('resize',this.onResize);

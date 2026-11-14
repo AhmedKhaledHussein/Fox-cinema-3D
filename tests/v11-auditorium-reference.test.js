@@ -20,8 +20,8 @@ test('V11 seat backrest is genuinely curved and instanced instead of faceted ext
  assert.ok(layout.length>=300,'full auditorium geometry remains available');
 });
 test('V11 camera maintains perspective by selected seat and prioritizes screen composition',()=>{
- assert.match(three,/const eye=v\(s\.x,s\.y\+2\.02,s\.z\+\.15\),look=v\(0,4\.80,-4\)/);
- assert.match(three,/toFov:\(s\.rowIndex<3\?52:49\)/);
+ assert.match(three,/const mobile=window\.innerWidth<=720;const eye=v\(s\.x,s\.y\+2\.02,s\.z\+\.15\),look=v\(0,mobile\?6\.15:4\.80,-4\)/);
+ assert.match(three,/toFov:\(mobile\?.*s\.rowIndex<3\?52:49\)\)/);
  assert.ok(getSeat('M27').x>10);
  assert.ok(getSeat('M13').x<getSeat('M27').x);
 });
