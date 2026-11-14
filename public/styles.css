@@ -778,3 +778,28 @@ html[data-fox-route="theater"] .theater-page .seat-view-label{animation:fox-cine
 @media (prefers-reduced-motion:reduce) {
   .theater-page .hud,.theater-page .hud-toggle {transition:none!important}
 }
+
+
+/* Desktop seat panel: keep the chevron physically attached throughout the slide.
+   The panel starts exactly outside the viewport; the tab starts at its edge. */
+@media (min-width:721px) {
+  .theater-page .hud {
+    transform:translateX(calc(100% + 18px))!important;
+    transition:transform .32s cubic-bezier(.22,.65,.19,1),opacity .22s,visibility 0s .32s!important;
+  }
+  .theater-page.hud-open .hud {
+    transform:translateX(0)!important;
+    transition:transform .32s cubic-bezier(.22,.65,.19,1),opacity .22s,visibility 0s!important;
+  }
+  .theater-page .hud-toggle,
+  .theater-page.hud-open .hud-toggle {
+    right:var(--fox-hud-travel, 362px)!important;
+    transition:transform .32s cubic-bezier(.22,.65,.19,1),background .2s!important;
+  }
+  .theater-page .hud-toggle {
+    transform:translateX(var(--fox-hud-travel, 362px))!important;
+  }
+  .theater-page.hud-open .hud-toggle {
+    transform:translateX(0)!important;
+  }
+}
