@@ -4,14 +4,14 @@
 const allowedSections=new Set(['now','upcoming','discover','arabic','series']);
 export function mergeCatalogue(movies,snapshot){
  if(snapshot?.schema!==1||!Array.isArray(snapshot.titles))return {added:0,generatedAt:null};
- const seen=new Set(movies.map(m=>m.id));let added=0;
+ const seen=new Set(movies.map(m=>m.id));let added=0,updated=0;
  // Verified TMDb lookups may add official trailer info to original demo film entries.
  for(const movie of movies){const c=snapshot.curated?.[movie.id];if(!c)continue;
   if(/^[A-Za-z0-9_-]{11}$/.test(c.trailer||''))movie.trailer=c.trailer;
   if(/^https:\/\/image\.tmdb\.org\/t\/p\/w\d+\/[^\s]+$/.test(c.posterUrl||''))movie.posterUrl=c.posterUrl;
  }
  for(const item of snapshot.titles.slice(0,600)){
-  if(!item||!/^tmdb-(movie|tv)-\d+$/.test(item.id)||!allowedSections.has(item.section)||seen.has(item.id))continue;
+  if(!item||!/^tmdb-(movie|tv)-\d+$/.test(item.id)||!allowedSections.has(item.section) )continue;
   if(!item.title||typeof item.title!=='string')continue;
   const safe={
    id:item.id,tmdbId:Number(item.tmdbId),title:item.title.slice(0,180),arabic:(item.arabic||item.title).slice(0,180),
@@ -23,9 +23,15 @@ export function mergeCatalogue(movies,snapshot){
    backdropUrl:/^https:\/\/image\.tmdb\.org\/t\/p\/(w\d+|original)\/[^\s]+$/.test(item.backdropUrl)?item.backdropUrl:'',
    trailer:/^[A-Za-z0-9_-]{11}$/.test(item.trailer||'')?item.trailer:null,
    releaseDate:String(item.releaseDate||''),posterSource:`https://www.themoviedb.org/${item.mediaType==='tv'?'tv':'movie'}/${Number(item.tmdbId)}`,
-  };movies.push(safe);seen.add(safe.id);added++;
+  };
+  if(seen.has(safe.id)){
+    const existing=movies.find(m=>m.id===safe.id);
+    if(existing?.isLive){for(const [key,value] of Object.entries(safe))if(existing[key]!==value){existing[key]=value;updated++;}}
+    continue;
+  }
+  movies.push(safe);seen.add(safe.id);added++;
  }
- return {added,generatedAt:snapshot.generatedAt||null};
+ return {added,updated,generatedAt:snapshot.generatedAt||null};
 }
 export function inMode(m,mode){
  switch(mode){
