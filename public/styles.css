@@ -309,3 +309,15 @@ html[data-fox-route="theater"] .theater-page .seat-view-label{animation:fox-cine
 .show-format-pill{color:#eab6a2;background:#612c38;border:1px solid #9c5062;padding:3px 9px;border-radius:999px;letter-spacing:.06em;font-size:10px;font-weight:750;}
 @media(max-width:720px){.theater-controls{left:10px;bottom:auto;top:75px;flex-direction:row;gap:5px;max-width:calc(100vw - 20px)}.theater-controls button{padding:7px 9px!important;font-size:11px!important}.theater-controls .theater-audio-btn span{font-size:10px}.theater-controls span:not(.theater-audio-btn span){display:none}}
 @media(prefers-reduced-motion:reduce){.theater-controls .theater-audio-btn{transition:none}}
+
+/* V11 reference-matching projection finish. The trailer remains an actual
+   interactive video on a perspective-correct cinema screen, never a screenshot. */
+.theater-screen-video{
+  box-shadow:0 0 38px #8bafdf23,0 0 96px #48638918!important;
+  background:#030509;
+}
+.theater-screen-video:after{
+  background:linear-gradient(180deg,rgba(8,12,18,.115) 0%,rgba(5,8,15,.018) 31%,rgba(4,6,10,.028) 67%,rgba(3,5,9,.22) 100%);
+  box-shadow:inset 0 0 26px 10px #0005;
+}
+.theater-page canvas{image-rendering:auto}

@@ -1,4 +1,4 @@
-/** FOX CINEMA V7 — Three.js physically based auditorium and screen-aligned official trailer.
+/** FOX CINEMA V11 — calibrated cinematic auditorium with sculpted instanced recliners.
  * Three.js loaded as an ESM dependency from jsDelivr, with the legacy WebGL renderer
  * retained in app.js as a network-failure fallback. No screenshot/video-frame set dressing.
  */
@@ -20,7 +20,7 @@ function upholsteryGrain(){
  }x.putImageData(d,0,0);grainTexture=new THREE.CanvasTexture(c);
  grainTexture.wrapS=grainTexture.wrapT=THREE.RepeatWrapping;grainTexture.repeat.set(3,3);return grainTexture;
 }
-const leather=(color,roughness=.5)=>new THREE.MeshPhysicalMaterial({color,roughness,metalness:0,clearcoat:.21,clearcoatRoughness:.57,bumpMap:upholsteryGrain(),bumpScale:.011});
+const leather=(color,roughness=.5)=>new THREE.MeshPhysicalMaterial({color,roughness,metalness:0,clearcoat:.10,clearcoatRoughness:.78,bumpMap:upholsteryGrain(),bumpScale:.007});
 const mat=(color,roughness=.7,metalness=0)=>new THREE.MeshStandardMaterial({color,roughness,metalness});
 const color={charcoal:0x111217,coal:0x0c0e12,carpet:0x121216,wall:0x4d111c,red:0x651a24,trim:0xa94b4b,gold:0xe9ac78,rail:0x9ca8b3,step:0x75e6a7};
 function panelTexture(){
@@ -33,45 +33,59 @@ function box(scene,w,h,d,material,x,y,z){const o=new THREE.Mesh(new THREE.BoxGeo
 function pipe(scene,start,end,radius,material,sides=10){const a=new THREE.Vector3(...start),b=new THREE.Vector3(...end);const d=b.clone().sub(a);const o=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,d.length(),sides),material);o.position.copy(a.clone().add(b).multiplyScalar(.5));o.quaternion.setFromUnitVectors(v(0,1,0),d.normalize());scene.add(o);return o;}
 function signTexture(format='MAX',accent='#ef897a'){const c=document.createElement('canvas');c.width=1024;c.height=512;const x=c.getContext('2d');x.fillStyle='#0f1118';x.fillRect(0,0,1024,512);x.strokeStyle=accent;x.lineWidth=20;x.strokeRect(19,19,986,474);x.textAlign='center';x.textBaseline='middle';x.fillStyle=accent;x.font=`900 ${format.length>5?125:format.length>4?175:format.length>3?210:230}px Arial`;x.fillText(format,512,257);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
 function pillTexture(){const c=document.createElement('canvas');c.width=128;c.height=128;const x=c.getContext('2d');x.fillStyle='#161619';x.fillRect(0,0,128,128);x.fillStyle='#eac5a0';x.beginPath();x.arc(64,64,32,0,Math.PI*2);x.fill();const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
-/** Sculptured upholstery shell: beveled front/back with a consistent rectangular
- * silhouette, replacing the balloon-like sphere used by the earlier demo. */
+/** V11: smoothly varying cushion form.  A truly curved upholstery shell is
+ * essential: bevelled ExtrudeGeometry made the previous seats look like steel
+ * cabinets. The high-poly geometry is instanced so hundreds of seats remain
+ * practical on Safari, and the mobile mesh uses fewer segments.
+ */
 function upholsteredPad(low=false){
- const r=.35,shape=new THREE.Shape();
- shape.moveTo(-1+r,-1);shape.lineTo(1-r,-1);
- shape.quadraticCurveTo(1,-1,1,-1+r);shape.lineTo(1,1-r);
- shape.quadraticCurveTo(1,1,1-r,1);shape.lineTo(-1+r,1);
- shape.quadraticCurveTo(-1,1,-1,1-r);shape.lineTo(-1,-1+r);
- shape.quadraticCurveTo(-1,-1,-1+r,-1);
- const geo=new THREE.ExtrudeGeometry(shape,{depth:1.45,steps:1,bevelEnabled:true,bevelThickness:.12,bevelSize:.09,bevelSegments:low?2:3,curveSegments:low?3:6});
- geo.translate(0,0,-.725);geo.computeVertexNormals();return geo;
+ const geo=new THREE.SphereGeometry(1,low?16:32,low?12:24);
+ const a=geo.attributes.position;
+ for(let i=0;i<a.count;i++){
+  const x=a.getX(i),y=a.getY(i),z=a.getZ(i);
+  const shoulder=1-.055*Math.max(0,y);
+  a.setXYZ(i,x*shoulder,Math.sign(y)*Math.pow(Math.abs(y),.92),
+    z*(.77+.10*(1-y*y))+.025*(1-y*y));
+ }
+ geo.computeVertexNormals();return geo;
 }
 function createSeatInstances(scene,low=false){
- const sphere=upholsteredPad(low);
- const cylinder=new THREE.CylinderGeometry(1,1,1,low?9:15);
+ const upholstery=upholsteredPad(low);
+ const cylinder=new THREE.CylinderGeometry(1,1,1,low?10:16);
  const parts=[
-  {name:'back-shell',geo:sphere,pos:[0,1.09,.30],scale:[.49,.75,.29]},
-  {name:'back-inset',geo:sphere,pos:[0,1.08,.48],scale:[.43,.60,.095]},
-  {name:'headrest',geo:sphere,pos:[0,1.67,.37],scale:[.44,.215,.20]},
-  {name:'seat',geo:sphere,pos:[0,.56,-.24],scale:[.47,.17,.46]},
-  {name:'front',geo:sphere,pos:[0,.44,-.63],scale:[.44,.105,.21]},
-  {name:'left-arm',geo:sphere,pos:[-.58,.77,-.1],scale:[.17,.13,.51]},
-  {name:'right-arm',geo:sphere,pos:[.58,.77,-.1],scale:[.17,.13,.51]},
-  {name:'left-cup',geo:new THREE.TorusGeometry(.076,.017,8,14),pos:[-.60,.87,-.35],scale:[1,1,1]},
-  {name:'right-cup',geo:new THREE.TorusGeometry(.076,.017,8,14),pos:[.60,.87,-.35],scale:[1,1,1]},
-  {name:'pedestal',geo:cylinder,pos:[0,.16,.06],scale:[.19,.31,.20]},
+  {name:'back-shell',geo:upholstery,pos:[0,1.12,.28],scale:[.50,.77,.31]},
+  {name:'back-inset',geo:upholstery,pos:[0,1.12,.53],scale:[.431,.625,.12]},
+  {name:'headrest',geo:upholstery,pos:[0,1.66,.39],scale:[.43,.225,.19]},
+  {name:'left-wing',geo:upholstery,pos:[-.44,1.12,.37],scale:[.085,.55,.19]},
+  {name:'right-wing',geo:upholstery,pos:[.44,1.12,.37],scale:[.085,.55,.19]},
+  {name:'seat',geo:upholstery,pos:[0,.57,-.24],scale:[.475,.145,.44]},
+  {name:'front',geo:upholstery,pos:[0,.47,-.57],scale:[.425,.105,.20]},
+  {name:'left-arm',geo:upholstery,pos:[-.58,.79,-.12],scale:[.152,.12,.45]},
+  {name:'right-arm',geo:upholstery,pos:[.58,.79,-.12],scale:[.152,.12,.45]},
+  {name:'left-cup',geo:new THREE.TorusGeometry(.073,.014,9,18),pos:[-.60,.86,-.35],scale:[1,1,1]},
+  {name:'right-cup',geo:new THREE.TorusGeometry(.073,.014,9,18),pos:[.60,.86,-.35],scale:[1,1,1]},
+  {name:'pedestal',geo:cylinder,pos:[0,.16,.04],scale:[.175,.29,.17]},
  ];
  const groups={regular:layout.filter(s=>s.type!=='Premium'),premium:layout.filter(s=>s.type==='Premium')};
  const materials={
-  regular:{shell:leather(0x181b20,.62),cushion:leather(0x25272d,.54),head:leather(0x303139,.51),arm:leather(0x20232a,.58)},
-  premium:{shell:leather(0x171b23,.58),cushion:leather(0x272d36,.48),head:leather(0x353d45,.46),arm:leather(0x262b33,.55)},
-  cup:mat(0x81909b,.24,.86),pedestal:mat(0x141519,.75,.25)};
+  regular:{shell:leather(0x13171c,.69),cushion:leather(0x222730,.63),head:leather(0x252c35,.66),arm:leather(0x1b2027,.69)},
+  premium:{shell:leather(0x11151b,.67),cushion:leather(0x212731,.60),head:leather(0x282e37,.65),arm:leather(0x1c2129,.68)},
+  cup:mat(0x78848b,.34,.61),pedestal:mat(0x151719,.78,.12)
+ };
  const dummy=new THREE.Object3D();
  for(const [kind,seats] of Object.entries(groups)){
   for(const part of parts){
    const m=part.name.includes('cup')?materials.cup:part.name==='pedestal'?materials.pedestal:
-    part.name==='headrest'?materials[kind].head:part.name.includes('arm')?materials[kind].arm:part.name==='back-shell'?materials[kind].shell:materials[kind].cushion;
+    part.name==='headrest'?materials[kind].head:part.name.includes('arm')?materials[kind].arm:
+    part.name==='back-shell'||part.name.endsWith('wing')?materials[kind].shell:materials[kind].cushion;
    const o=new THREE.InstancedMesh(part.geo,m,seats.length);o.frustumCulled=false;
-   seats.forEach((s,i)=>{const w=(kind==='premium'?1:.88);dummy.position.set(s.x+part.pos[0]*w,s.y+part.pos[1],s.z+part.pos[2]);dummy.scale.set(part.scale[0]*w,part.scale[1],part.scale[2]);dummy.rotation.set(part.name.includes('cup')?-Math.PI/2:0,0,0);dummy.updateMatrix();o.setMatrixAt(i,dummy.matrix)});
+   seats.forEach((s,i)=>{
+    const w=kind==='premium'?1:.88;
+    dummy.position.set(s.x+part.pos[0]*w,s.y+part.pos[1],s.z+part.pos[2]);
+    dummy.scale.set(part.scale[0]*w,part.scale[1],part.scale[2]);
+    dummy.rotation.set(part.name.includes('cup')?-Math.PI/2:0,0,0);
+    dummy.updateMatrix();o.setMatrixAt(i,dummy.matrix);
+   });
    o.instanceMatrix.needsUpdate=true;scene.add(o);
   }
  }
@@ -113,23 +127,23 @@ function homography(q,W,H){
 }
 export class TheaterThree{
  constructor(canvas,onReady,movieId='godzilla-minus-zero',selectedFormat='Standard'){
-  this.canvas=canvas;this.movie=getMovie(movieId);this.showFormat=normalizeScreenFormat(selectedFormat);this.profile=screenProfile(this.showFormat);this.disposed=false;this.soundEnabled=false;this.trailerActive=false;this.selected='G9';this.yaw=0;this.pitch=0;this.fov=54;this.currentEye=v(0,20.8,38);this.currentTarget=v(0,4.7,9);
+  this.canvas=canvas;this.movie=getMovie(movieId);this.showFormat=normalizeScreenFormat(selectedFormat);this.profile=screenProfile(this.showFormat);this.disposed=false;this.soundEnabled=false;this.trailerActive=false;this.selected='G9';this.yaw=0;this.pitch=0;this.fov=50;this.currentEye=v(0,20.8,38);this.currentTarget=v(0,4.7,9);
   this.destEye=this.currentEye.clone();this.destTarget=this.currentTarget.clone();this.entry=true;this.pointer=null;this.tween=null;
   const isMobile=window.innerWidth<760,low=isMobile||(navigator.deviceMemory&&navigator.deviceMemory<=4);
   this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
-  this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.41;
-  this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,low?1.45:1.9));this.renderer.setClearColor(0x050507);
-  this.scene=new THREE.Scene();this.scene.background=new THREE.Color(0x060608);this.scene.fog=new THREE.FogExp2(0x09090d,.007);
-  this.camera=new THREE.PerspectiveCamera(54,1,.16,110);
-  this.scene.add(new THREE.HemisphereLight(0x9cb1cc,0x51232c,1.13));this.scene.add(new THREE.AmbientLight(0x98a0b5,.25));
+  this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.30;
+  this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,low?1.4:2.0));this.renderer.setClearColor(0x050507);
+  this.scene=new THREE.Scene();this.scene.background=new THREE.Color(0x060608);this.scene.fog=new THREE.FogExp2(0x09090d,.0045);
+  this.camera=new THREE.PerspectiveCamera(50,1,.16,110);
+  this.scene.add(new THREE.HemisphereLight(0xa8bbcf,0x501f27,1.03));this.scene.add(new THREE.AmbientLight(0x9eacbb,.28));
   this.buildAuditorium(low);createSeatInstances(this.scene,low);
   this.buildScreen();this.loadPoster();
   this.setupOverlay();this.attachInput();this.setSeat('G9');this.resize();
   this.frame=this.frame.bind(this);this.raf=requestAnimationFrame(this.frame);onReady?.();
  }
  buildAuditorium(low){const s=this.scene;
-  const wall=mat(0x711e2b,.86),fabric=new THREE.MeshStandardMaterial({map:panelTexture(),color:0xe4d3d6,roughness:.91});
-  const floor=mat(0x15181b,.92),trim=mat(0xcf8275,.36,.38),edge=mat(0xa4b4be,.27,.78),black=mat(0x0c0e12,.83),carpet=mat(0x121316,.96);
+  const wall=new THREE.MeshStandardMaterial({color:0x6b2029,roughness:.96,emissive:0x351019,emissiveIntensity:.32}),fabric=new THREE.MeshStandardMaterial({map:panelTexture(),color:0xf6dfe1,roughness:.94,emissive:0x200608,emissiveIntensity:.30});
+  const floor=mat(0x15181b,.92),trim=new THREE.MeshStandardMaterial({color:0xc87672,roughness:.47,metalness:.19,emissive:0x34151a,emissiveIntensity:.18}),edge=mat(0x85939f,.38,.57),black=mat(0x0c0e12,.83),carpet=mat(0x121316,.96);
   box(s,31,.45,52,floor,0,-.8,18);box(s,30,1.2,2.8,black,0,.52,-2.2);
   box(s,31,.4,53,black,0,12.7,19);
   for(const side of [-1,1]){
@@ -147,12 +161,18 @@ export class TheaterThree{
     if(z===18){const point=new THREE.PointLight(0xd75252,low?.32:.48,10,2);point.position.set(side*14,5.8,z+2);s.add(point);}
    }
    for(let z=0;z<42;z+=7.5){box(s,.09,1.3,.08,trim,side*14.18,2.4,z);}
+   // Architectural wall glow gives the reference's deep red without brightening
+   // the upholstery to the pale plastic look in V10.
+   const wallBounce=new THREE.PointLight(0xb3564d,low?.62:1.08,25,2.1);
+   wallBounce.position.set(side*11.0,6.0,8);s.add(wallBounce);
   }
+  const ceilingBulbGeometry=new THREE.SphereGeometry(.055,10,8);
+  const ceilingBulbMaterial=new THREE.MeshBasicMaterial({color:0xf9d8ae,toneMapped:false});
   for(let i=0;i<11;i++){
    const z=-1+i*4.5;box(s,31,.65,.65,black,0,12.30,z);
-   box(s,29,.05,.14,mat(0x343039,.55),0,11.96,z+.4);
+   box(s,29,.035,.12,mat(0x293039,.76),0,11.96,z+.4);
    for(let x=-12;x<=12;x+=6){
-    const bulb=new THREE.Mesh(new THREE.SphereGeometry(.065,8,6),new THREE.MeshBasicMaterial({color:0xffd6b2,toneMapped:false}));bulb.position.set(x,11.93,z+.43);s.add(bulb);
+    const bulb=new THREE.Mesh(ceilingBulbGeometry,ceilingBulbMaterial);bulb.position.set(x,11.93,z+.43);s.add(bulb);
     if(i%3===0&&(x===-6||x===6)){const p=new THREE.PointLight(0xffd4a2,low?.50:.62,13,2.2);p.position.set(x,11.75,z+.43);s.add(p);}
    }
   }
@@ -169,11 +189,11 @@ export class TheaterThree{
   }
   // Screen border, silver trim, projection bounce lighting.
   const sw=this.profile.screenWidth,sh=this.profile.screenHeight;
-  const cy=6.65,borderW=sw+.60,borderH=sh+.57;
-  box(s,borderW,borderH,.29,mat(0x111318,.59),0,cy,-4.32);
-  for(const x of [-borderW/2,borderW/2])box(s,.16,borderH,.21,edge,x,cy,-4.15);
-  for(const y of [cy-borderH/2,cy+borderH/2])box(s,borderW,.13,.21,edge,0,y,-4.14);
-  for(const x of [-4,4]){const projector=new THREE.SpotLight(0xb9cff1,low?31:44,52,1.04,.84,1);projector.position.set(x,9.0,-4.2);projector.target.position.set(x/2,1.9,13);s.add(projector,projector.target);}
+  const cy=6.65,borderW=sw+.76,borderH=sh+.70;
+  box(s,borderW,borderH,.30,mat(0x090b10,.82),0,cy,-4.32);
+  for(const x of [-borderW/2,borderW/2])box(s,.13,borderH,.20,mat(0x333741,.60,.23),x,cy,-4.15);
+  for(const y of [cy-borderH/2,cy+borderH/2])box(s,borderW,.12,.20,mat(0x333741,.60,.23),0,y,-4.14);
+  for(const x of [-4,4]){const projector=new THREE.SpotLight(0xb9cff1,low?22:33,52,1.04,.84,1);projector.position.set(x,9.0,-4.2);projector.target.position.set(x/2,1.9,13);s.add(projector,projector.target);}
   // The floor and railings are three-dimensional round metal (no flat polygons).
   for(const z of [11,21,30])for(const x of [-7.64,7.64]){
    const y=(z-5)*.145+1.25;
@@ -182,7 +202,7 @@ export class TheaterThree{
    for(let j=0;j<5;j++){let zz=z+j*1.1;pipe(s,[x,y-1.22,zz],[x,y,zz],.032,edge,10);}
   }
   for(let x=-13;x<13;x+=2.5){pipe(s,[x,1.28,-1.15],[x+2.5,1.28,-1.15],.035,edge,14);pipe(s,[x,.36,-1.15],[x,1.28,-1.15],.025,edge,10);}
-  const p=new THREE.PointLight(0xb5c9f9,low?3.8:5.3,44,1.60);p.position.set(0,8,-2.8);s.add(p);this.screenSpill=p;this.screenSpillBase=p.intensity;
+  const p=new THREE.PointLight(0xb5c9f9,low?2.8:4.0,44,1.60);p.position.set(0,8,-2.8);s.add(p);this.screenSpill=p;this.screenSpillBase=p.intensity;
  }
  buildScreen(){
   const material=new THREE.MeshBasicMaterial({toneMapped:false,side:THREE.DoubleSide});
@@ -233,12 +253,12 @@ export class TheaterThree{
   const m=homography(projected.map(p=>p.slice(0,2)),1280,this.videoFrameHeight);if(m)this.overlay.style.transform=m;
  }
  setSeat(id,immediate=false){const s=getSeat(id);if(!s)return;this.selected=id;
-  const eye=v(s.x,s.y+2.07,s.z+.15),look=v(0,6.5,-4);this.destEye=eye;this.destTarget=look;
+  const eye=v(s.x,s.y+2.02,s.z+.15),look=v(0,4.80,-4);this.destEye=eye;this.destTarget=look;
   if(immediate||reduced()){this.currentEye.copy(eye);this.currentTarget.copy(look);this.entry=false;this.tween=null;}
-  else this.tween={fromEye:this.currentEye.clone(),fromTarget:this.currentTarget.clone(),toEye:eye,toTarget:look,started:performance.now(),duration:this.entry?1650:1100,fromFov:this.fov,toFov:54,isEntry:this.entry};
+  else this.tween={fromEye:this.currentEye.clone(),fromTarget:this.currentTarget.clone(),toEye:eye,toTarget:look,started:performance.now(),duration:this.entry?1650:1100,fromFov:this.fov,toFov:(s.rowIndex<3?52:49),isEntry:this.entry};
   this.yaw=0;this.pitch=0;
  }
- reset(){this.yaw=0;this.pitch=0;this.fov=54;}
+ reset(){this.yaw=0;this.pitch=0;this.fov=50;}
  attachInput(){
   this.down=e=>{if(e.button!==0)return;this.pointer=[e.clientX,e.clientY];this.canvas.setPointerCapture(e.pointerId)};
   this.move=e=>{if(!this.pointer)return;this.yaw=clamp(this.yaw+(e.clientX-this.pointer[0])*.003,-.72,.72);this.pitch=clamp(this.pitch+(e.clientY-this.pointer[1])*.003,-.40,.42);this.pointer=[e.clientX,e.clientY];};
@@ -268,6 +288,6 @@ export class TheaterThree{
  dispose(){this.disposed=true;cancelAnimationFrame(this.raf);clearTimeout(this.timer);clearTimeout(this.videoTimer);clearTimeout(this.videoRevealTimer);clearTimeout(this.infoTimeout);this.videoIframe=null;
   this.overlay?.remove();this.info?.remove();window.removeEventListener('resize',this.onResize);
   this.canvas.removeEventListener('pointerdown',this.down);this.canvas.removeEventListener('pointermove',this.move);this.canvas.removeEventListener('pointerup',this.up);this.canvas.removeEventListener('pointercancel',this.up);this.canvas.removeEventListener('wheel',this.wheel);
-  grainTexture?.dispose?.();grainTexture=null;this.scene.traverse(obj=>{obj.geometry?.dispose?.();if(obj.material){const a=Array.isArray(obj.material)?obj.material:[obj.material];for(const m of a){m.map?.dispose?.();m.dispose?.();}}});this.renderer.dispose();
+  grainTexture?.dispose?.();grainTexture=null;const geometries=new Set(),materials=new Set(),textures=new Set();this.scene.traverse(obj=>{if(obj.geometry)geometries.add(obj.geometry);if(obj.material)for(const m of (Array.isArray(obj.material)?obj.material:[obj.material])){materials.add(m);if(m.map)textures.add(m.map);}});for(const g of geometries)g.dispose();for(const t of textures)t.dispose();for(const m of materials)m.dispose();this.renderer.dispose();
  }
 }

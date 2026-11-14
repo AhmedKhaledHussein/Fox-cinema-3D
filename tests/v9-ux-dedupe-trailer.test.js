@@ -67,7 +67,7 @@ test('V9: controls align at consistent height; film is never stretched inside th
  assert.match(css,/filter-bar\{[^}]*grid-template-columns:minmax\(150px,1\.4fr\)/);
  assert.match(css,/theater-trailer-iframe\{[\s\S]*?width:1280px!important;height:720px!important/);
  assert.match(three,/three\.module\.js/);
- assert.match(three,/toFov:54/);
+ assert.match(three,/toFov:\(s\.rowIndex<3\?52:49\)/);
  assert.match(three,/videoRevealTimer/);
  assert.match(app,/uniqueMoviesForMode\(movies,state\.filmMode\)/);
 });
