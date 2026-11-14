@@ -1,4 +1,9 @@
-FOX CINEMA V11 TESTS — 45/45 passed; JS syntax check OK.
-Curved-shell upholstery with analytic normals and instanced seats, reference-focused camera, material and lighting restoration.
-Browser visual QA NOT performed: local Chromium blocked by ERR_BLOCKED_BY_ADMINISTRATOR.
-Exact visual equivalence not established; source 3D asset not available.
+FOX CINEMA V12 — Reactive Screen Lighting
+Local static + unit + booking/API suite: 51/51 PASS
+Commands:
+  node --check public/theater-three.js
+  node --check public/screen-lighting.js
+  npm test
+Mode A — same-origin licensed MP4/WebM: 3-zone actual-frame color probe every 140ms desktop / 280ms low-power.
+Mode B — YouTube embedded trailer: artwork-based approximate lighting only (no access to YouTube pixels).
+Safari on-device visual playback and live rendering: NOT VERIFIED by automated tests.

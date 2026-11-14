@@ -1,10 +1,11 @@
-/** FOX CINEMA V11 — calibrated cinematic auditorium with sculpted instanced recliners.
+/** FOX CINEMA V12 — adaptive screen lighting with sculpted instanced recliners.
  * Three.js loaded as an ESM dependency from jsDelivr, with the legacy WebGL renderer
  * retained in app.js as a network-failure fallback. No screenshot/video-frame set dressing.
  */
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
 import {getMovie,getSeat,layout} from './catalog.js';
 import {screenProfile,normalizeScreenFormat,trailerEmbedUrl} from './theater-presets.js';
+import {ScreenFrameProbe,localTrailerPath,smoothLightSample} from './screen-lighting.js';
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 const reduced=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches||false;
 const v=(x,y,z)=>new THREE.Vector3(x,y,z);
@@ -133,6 +134,18 @@ function imageSource(movie){
  if(official?.startsWith('https://'))return `https://wsrv.nl/?url=${encodeURIComponent(official)}&w=900&output=jpg`;
  return `/assets/posters/${encodeURIComponent(movie.id)}.webp`;
 }
+/** True soft-edge screen glow texture (not an opaque rectangular billboard). */
+function screenHaloTexture(){
+ const c=document.createElement('canvas');c.width=256;c.height=128;
+ const ctx=c.getContext('2d');
+ if(!ctx)return null;
+ ctx.clearRect(0,0,256,128);
+ const g=ctx.createRadialGradient(128,64,28,128,64,128);
+ g.addColorStop(0,'rgba(255,255,255,.35)');g.addColorStop(.46,'rgba(255,255,255,.19)');
+ g.addColorStop(.74,'rgba(255,255,255,.07)');g.addColorStop(1,'rgba(255,255,255,0)');
+ ctx.fillStyle=g;ctx.fillRect(0,0,256,128);
+ const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;
+}
 // Four-corner CSS homography: embeds a licensed YouTube trailer visually on the theater's 3D screen.
 // YouTube video streams cannot legally/technically be sampled into a cross-origin WebGL VideoTexture.
 function homography(q,W,H){
@@ -156,7 +169,12 @@ export class TheaterThree{
   this.camera=new THREE.PerspectiveCamera(50,1,.16,110);
   this.scene.add(new THREE.HemisphereLight(0xa8bbcf,0x501f27,1.03));this.scene.add(new THREE.AmbientLight(0x9eacbb,.28));
   this.buildAuditorium(low);createSeatInstances(this.scene,low);
-  this.buildScreen();this.loadPoster();
+  this.lowPower=Boolean(low);this.frameProbe=new ScreenFrameProbe(document);
+  this.lightSample=null;this.smoothedLight=null;this.lastLightFrame=performance.now();
+  this.lightMode='artwork';this.trailerLocalVideo=null;this.videoTexture=null;this.trailerActive=false;
+  this.lightFilmPalette=[];this.paletteIndex=0;this.lastPaletteChange=0;
+  this.tempLightColors=[new THREE.Color(),new THREE.Color(),new THREE.Color()];
+  this.buildScreen();this.loadPoster();this.loadBackdropPalette();
   this.setupOverlay();this.attachInput();this.setSeat('G9');this.resize();
   this.frame=this.frame.bind(this);this.raf=requestAnimationFrame(this.frame);onReady?.();
  }
@@ -212,7 +230,13 @@ export class TheaterThree{
   box(s,borderW,borderH,.30,mat(0x090b10,.82),0,cy,-4.32);
   for(const x of [-borderW/2,borderW/2])box(s,.13,borderH,.20,mat(0x333741,.60,.23),x,cy,-4.15);
   for(const y of [cy-borderH/2,cy+borderH/2])box(s,borderW,.12,.20,mat(0x333741,.60,.23),0,y,-4.14);
-  for(const x of [-4,4]){const projector=new THREE.SpotLight(0xb9cff1,low?22:33,52,1.04,.84,1);projector.position.set(x,9.0,-4.2);projector.target.position.set(x/2,1.9,13);s.add(projector,projector.target);}
+  this.projectors=[];
+  for(const x of [-4,4]){
+   const projector=new THREE.SpotLight(0xb9cff1,low?15:27,52,1.04,.84,1);
+   projector.position.set(x,9.0,-4.2);projector.target.position.set(x/2,1.9,13);
+   s.add(projector,projector.target);this.projectors.push(projector);
+  }
+  this.projectorBase=low?15:27;
   // The floor and railings are three-dimensional round metal (no flat polygons).
   for(const z of [11,21,30])for(const x of [-7.64,7.64]){
    const y=(z-5)*.145+1.25;
@@ -221,41 +245,134 @@ export class TheaterThree{
    for(let j=0;j<5;j++){let zz=z+j*1.1;pipe(s,[x,y-1.22,zz],[x,y,zz],.032,edge,10);}
   }
   for(let x=-13;x<13;x+=2.5){pipe(s,[x,1.28,-1.15],[x+2.5,1.28,-1.15],.035,edge,14);pipe(s,[x,.36,-1.15],[x,1.28,-1.15],.025,edge,10);}
-  const p=new THREE.PointLight(0xb5c9f9,low?2.8:4.0,44,1.60);p.position.set(0,8,-2.8);s.add(p);this.screenSpill=p;this.screenSpillBase=p.intensity;
+  // Light comes from the actual screen position, fades into the audience with
+  // distance, and illuminates the physical seat geometry rather than making all
+  // upholstery emissive. Desktop uses 3 zones; low-power devices use 1+1.
+  const p=new THREE.PointLight(0x92b7ff,low?2.7:3.5,35,1.85);
+  p.position.set(0,7.7,-2.65);s.add(p);this.screenSpill=p;
+  const left=new THREE.PointLight(0x77afff,low?.65:1.7,low?17:28,1.9);
+  left.position.set(-7.2,5.7,-2.25);s.add(left);
+  const right=new THREE.PointLight(0xffad8c,low?.65:1.7,low?17:28,1.9);
+  right.position.set(7.2,5.7,-2.25);s.add(right);this.sideSpills=[left,right];
+  const audience=new THREE.SpotLight(0x98bafa,low?2.4:4.9,low?29:40,.82,.84,1.85);
+  audience.position.set(0,7.15,-2.45);audience.target.position.set(0,1.2,13);s.add(audience,audience.target);this.audienceSpill=audience;
+  this.screenSpillBase=p.intensity;this.audienceBase=audience.intensity;
+  const haloTex=screenHaloTexture();
+  const haloMat=new THREE.MeshBasicMaterial({color:0x6baeff,map:haloTex,transparent:true,opacity:.20,
+   blending:THREE.AdditiveBlending,depthWrite:false,depthTest:true,toneMapped:false,side:THREE.DoubleSide});
+  const halo=new THREE.Mesh(new THREE.PlaneGeometry(sw+7.6,sh+6.3),haloMat);
+  halo.position.set(0,cy,-4.36);halo.renderOrder=2;s.add(halo);this.screenHalo=halo;
  }
  buildScreen(){
   const material=new THREE.MeshBasicMaterial({toneMapped:false,side:THREE.DoubleSide});
   this.screen=new THREE.Mesh(new THREE.PlaneGeometry(this.profile.screenWidth,this.profile.screenHeight),material);this.screen.position.set(0,6.65,-4.01);this.scene.add(this.screen);
-  this.screenTexture=new THREE.CanvasTexture(drawScreenCanvas(this.movie,null));this.screenTexture.colorSpace=THREE.SRGBColorSpace;material.map=this.screenTexture;material.needsUpdate=true;
+  const introCanvas=drawScreenCanvas(this.movie,null);
+  this.updateLightPaletteFromCanvas(introCanvas);
+  this.screenTexture=new THREE.CanvasTexture(introCanvas);this.screenTexture.colorSpace=THREE.SRGBColorSpace;material.map=this.screenTexture;material.needsUpdate=true;
+  const fadeMaterial=new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0,depthWrite:false,toneMapped:false});
+  this.screenFade=new THREE.Mesh(new THREE.PlaneGeometry(this.profile.screenWidth,this.profile.screenHeight),fadeMaterial);
+  this.screenFade.position.set(0,6.65,-3.992);this.scene.add(this.screenFade);
  }
  loadPoster(){const sources=[imageSource(this.movie),`/assets/posters/${encodeURIComponent(this.movie.id)}.webp`];let index=0;
   const tryNext=()=>{if(this.disposed||index>=sources.length)return;const image=new Image();image.crossOrigin='anonymous';image.decoding='async';
-   image.onload=()=>{if(this.disposed)return;const tex=new THREE.CanvasTexture(drawScreenCanvas(this.movie,image));tex.colorSpace=THREE.SRGBColorSpace;this.screen.material.map.dispose();this.screen.material.map=tex;this.screen.material.needsUpdate=true;};
+   image.onload=()=>{if(this.disposed||this.trailerActive)return;const canvas=drawScreenCanvas(this.movie,image);this.updateLightPaletteFromCanvas(canvas);const tex=new THREE.CanvasTexture(canvas);tex.colorSpace=THREE.SRGBColorSpace;this.screen.material.map.dispose();this.screen.material.map=tex;this.screen.material.needsUpdate=true;};
    image.onerror=()=>{index++;tryNext();};image.src=sources[index];};tryNext();
  }
+ loadBackdropPalette(){
+  // Secondary artwork colours enrich the YouTube approximation without making
+  // claims of frame-perfect sync. Failure to load never blocks the auditorium.
+  const backdrop=this.movie.backdropUrl;
+  if(!/^https:\/\/(?:image\.tmdb\.org|wsrv\.nl)\//.test(backdrop||''))return;
+  const img=new Image();img.crossOrigin='anonymous';img.decoding='async';
+  img.onload=()=>{
+   if(this.disposed)return;
+   const sample=this.frameProbe?.sample(img,performance.now(),0);
+   if(sample&&this.lightFilmPalette.length<3)this.lightFilmPalette.push(sample);
+  };
+  img.onerror=()=>{};img.src=backdrop;
+ }
  setupOverlay(){
-  const parent=this.canvas.parentElement;this.overlay=document.createElement('div');this.overlay.className='theater-screen-video';this.overlay.dataset.format=this.showFormat;this.videoFrameHeight=Math.round(1280*this.profile.screenHeight/this.profile.screenWidth);this.overlay.style.setProperty('--fox-frame-height',this.videoFrameHeight+'px');
-  this.overlay.setAttribute('aria-label','Official movie trailer when available');this.overlay.style.display='none';parent.appendChild(this.overlay);
-  // Do not load or autoplay third-party video before the three-second intro.
-  if(this.movie.trailer&&/^[A-Za-z0-9_-]{11}$/.test(this.movie.trailer)){
-   this.timer=setTimeout(()=>{if(this.disposed)return;
-    this.overlay.innerHTML='<div class="theater-video-black"></div>';
-    this.overlay.style.display='block';this.overlay.classList.add('theater-video-enter');this.trailerActive=true;
-    this.videoTimer=setTimeout(()=>{if(this.disposed)return;
-      const frame=document.createElement('iframe');frame.title=`${this.movie.title} — Official trailer`;
-      frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';frame.referrerPolicy='strict-origin-when-cross-origin';
-      frame.src=trailerEmbedUrl(this.movie.trailer,{origin:location.origin,muted:true});
-      frame.setAttribute('allowfullscreen','');frame.className='theater-trailer-iframe';this.overlay.appendChild(frame);this.videoIframe=frame;frame.addEventListener('load',()=>{if(this.soundEnabled)this.applySound(true);},{once:true});
-      requestAnimationFrame(()=>{this.overlay.querySelector('.theater-video-black')?.classList.add('fade-out');});
-    },650);
+  const parent=this.canvas.parentElement;
+  this.overlay=document.createElement('div');this.overlay.className='theater-screen-video';this.overlay.dataset.format=this.showFormat;
+  this.videoFrameHeight=Math.round(1280*this.profile.screenHeight/this.profile.screenWidth);
+  this.overlay.style.setProperty('--fox-frame-height',this.videoFrameHeight+'px');
+  this.overlay.setAttribute('aria-label','Official movie trailer when available');
+  this.overlay.style.display='none';parent.appendChild(this.overlay);
+  const local=localTrailerPath(this.movie.trailerVideoUrl||this.movie.trailerAsset);
+  const hasYouTube= /^[A-Za-z0-9_-]{11}$/.test(this.movie.trailer||'');
+  if(local || hasYouTube){
+   this.timer=setTimeout(()=>{
+    if(this.disposed)return;
+    if(local)this.startLocalTrailer(local,hasYouTube);
+    else this.startYouTubeTrailer();
    },3000);
   }else{
-   this.info=document.createElement('div');this.info.className='trailer-note';this.info.textContent='Official trailer currently unavailable — showing movie artwork';
+   this.info=document.createElement('div');this.info.className='trailer-note';
+   this.info.textContent='Official trailer currently unavailable — showing movie artwork';
    parent.appendChild(this.info);this.infoTimeout=setTimeout(()=>this.info?.remove(),4500);
   }
  }
+ startYouTubeTrailer(){
+  if(this.disposed)return;
+  if(!/^[A-Za-z0-9_-]{11}$/.test(this.movie.trailer||''))return;
+  this.lightMode='youtube-artwork';this.trailerActive=true;
+  this.overlay.innerHTML='<div class="theater-video-black"></div>';
+  this.overlay.style.display='block';this.overlay.classList.add('theater-video-enter');
+  this.videoTimer=setTimeout(()=>{
+   if(this.disposed)return;
+   const frame=document.createElement('iframe');frame.title=`${this.movie.title} — Official trailer`;
+   frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
+   frame.referrerPolicy='strict-origin-when-cross-origin';
+   frame.src=trailerEmbedUrl(this.movie.trailer,{origin:location.origin,muted:true});
+   frame.setAttribute('allowfullscreen','');frame.className='theater-trailer-iframe';
+   this.overlay.appendChild(frame);this.videoIframe=frame;
+   let revealed=false;
+   const reveal=()=>{if(revealed||this.disposed)return;revealed=true;this.overlay.querySelector('.theater-video-black')?.classList.add('fade-out');};
+   frame.addEventListener('load',()=>{if(this.soundEnabled)this.applySound(true);setTimeout(reveal,150);},{once:true});
+   this.videoRevealTimer=setTimeout(reveal,2400);
+  },530);
+ }
+ /** Prefer a legally-provided, same-origin MP4/WebM asset when the owner adds
+  * one in /public/assets/trailers. It becomes a true Three.VideoTexture and the
+  * visual scene can sample every ~140ms without violating cross-origin rules.
+  */
+ startLocalTrailer(source,hasYouTube){
+  if(this.disposed)return;
+  this.screenFadeState={start:performance.now(),phase:'in',duration:450};
+  const video=document.createElement('video');video.muted=true;video.autoplay=true;
+  video.loop=true;video.playsInline=true;video.preload='auto';video.crossOrigin='anonymous';video.src=source;
+  let settled=false;
+  const fallback=()=>{
+   if(settled||this.disposed)return;settled=true;video.pause();video.removeAttribute('src');video.load();
+   this.trailerLocalVideo=null;this.screenFadeState={start:performance.now(),phase:'out',duration:650};
+   if(hasYouTube)this.startYouTubeTrailer();
+  };
+  video.addEventListener('error',fallback,{once:true});
+  const begin=()=>{
+   if(settled||this.disposed)return;
+   settled=true;clearTimeout(this.videoLoadTimeout);
+   const texture=new THREE.VideoTexture(video);texture.colorSpace=THREE.SRGBColorSpace;
+   texture.minFilter=texture.magFilter=THREE.LinearFilter;
+   const ratio=video.videoWidth/video.videoHeight;const screenRatio=this.profile.screenWidth/this.profile.screenHeight;
+   if(ratio>screenRatio){texture.repeat.set(screenRatio/ratio,1);texture.offset.set((1-texture.repeat.x)/2,0);}
+   else{texture.repeat.set(1,ratio/screenRatio);texture.offset.set(0,(1-texture.repeat.y)/2);}
+   const previous=this.screen.material.map;
+   this.screen.material.map=texture;this.screen.material.needsUpdate=true;
+   previous?.dispose?.();
+   this.videoTexture=texture;this.trailerLocalVideo=video;this.lightMode='sampled-video';this.trailerActive=true;
+   this.screenFadeState={start:performance.now(),phase:'out',duration:650};
+  };
+  video.addEventListener('loadeddata',()=>{
+   video.play().then(()=>{
+    const remaining=Math.max(0,460-(performance.now()-this.screenFadeState.start));
+    this.localVideoRevealTimer=setTimeout(begin,remaining);
+   }).catch(fallback);
+  },{once:true});
+  this.videoLoadTimeout=setTimeout(fallback,5000);
+ }
  /** YouTube postMessage API is opt-in; unmuting requires explicit user action on Safari. */
  applySound(enabled){
+  if(this.trailerLocalVideo){this.trailerLocalVideo.muted=!enabled;if(enabled)this.trailerLocalVideo.play().catch(()=>{});return true;}
   if(!this.videoIframe?.contentWindow)return false;
   const command=func=>this.videoIframe.contentWindow.postMessage(JSON.stringify({event:'command',func,args:[]}), 'https://www.youtube-nocookie.com');
   command(enabled?'unMute':'mute');
@@ -263,6 +380,71 @@ export class TheaterThree{
   return true;
  }
  setSoundEnabled(enabled){this.soundEnabled=Boolean(enabled);return this.applySound(this.soundEnabled);}
+ updateLightPaletteFromCanvas(source){
+  // Artwork provides a genuine, film-specific palette before any trailer starts.
+  const sample=this.frameProbe?.sample(source,performance.now(),0);
+  if(!sample)return;
+  this.lightSample=sample;
+  if(!this.smoothedLight)this.smoothedLight=sample;
+  if(this.lightFilmPalette.length<3)this.lightFilmPalette.push(sample);
+ }
+ animateLightRig(t){
+  if(!this.screenSpill||!this.lightSample)return;
+  const delta=Math.min(100,Math.max(0,t-(this.lastLightFrame||t)));
+  this.lastLightFrame=t;
+  const reducedMotion=reduced();
+  if(this.lightMode==='sampled-video'&&this.trailerLocalVideo){
+   if(document.visibilityState!=='hidden'){
+    const sample=this.frameProbe.sample(this.trailerLocalVideo,t,this.lowPower?280:140);
+    if(sample)this.lightSample=sample;
+   }
+  }
+  // YouTube embeds cannot be read. Keep only a *subtle* artwork-colour ambience,
+  // not fake per-frame synchronization or abrupt, photosensitive flashes.
+  const approximate=this.lightMode==='youtube-artwork';
+  if(approximate&&!reducedMotion&&this.lightFilmPalette.length>1&&t-this.lastPaletteChange>7200){
+   this.lastPaletteChange=t;
+   this.paletteIndex=(this.paletteIndex+1)%this.lightFilmPalette.length;
+   this.lightSample=this.lightFilmPalette[this.paletteIndex];
+  }
+  const pulse=approximate&&!reducedMotion ? (.94+.06*Math.sin(t*.0008)+.03*Math.sin(t*.0017)) : 1;
+  this.smoothedLight=smoothLightSample(this.smoothedLight,this.lightSample,delta,reducedMotion);
+  const sample=this.smoothedLight;
+  const toColor=(index)=>{const rgb=sample.zones[index].color;return this.tempLightColors[index].setRGB(rgb[0],rgb[1],rgb[2],THREE.SRGBColorSpace);};
+  const center=toColor(1);
+  const left=toColor(0);
+  const right=toColor(2);
+  const level=sample.global.brightness*pulse;
+  const backdrop=this.trailerActive?1:.68;
+  // Physically plausible falloff: lights positioned by screen; no broad
+  // emissive hacks on every leather seat. Color changes ease over 210ms.
+  this.screenSpill.color.lerp(center,.11);
+  this.screenSpill.intensity=clamp(2.9*level*backdrop,.25,6.4);
+  this.sideSpills[0].color.lerp(left,.11);
+  this.sideSpills[1].color.lerp(right,.11);
+  this.sideSpills[0].intensity=clamp(1.85*sample.zones[0].brightness*backdrop,.12,4.5);
+  this.sideSpills[1].intensity=clamp(1.85*sample.zones[2].brightness*backdrop,.12,4.5);
+  this.audienceSpill.color.lerp(center,.09);
+  this.audienceSpill.intensity=clamp(this.audienceBase*level*backdrop,.2,7.8);
+  // The two original strong front-of-house spotlights must also receive the
+  // video's colours. Otherwise their fixed blue output overwhelms all changes.
+  if(this.projectors?.length===2){
+   this.projectors[0].color.lerp(left,.12);
+   this.projectors[1].color.lerp(right,.12);
+   this.projectors[0].intensity=clamp(this.projectorBase*sample.zones[0].brightness*backdrop,2.5,43);
+   this.projectors[1].intensity=clamp(this.projectorBase*sample.zones[2].brightness*backdrop,2.5,43);
+  }
+  if(this.screenHalo){
+   this.screenHalo.material.color.lerp(center,.09);
+   this.screenHalo.material.opacity=clamp(.11+.15*level,.10,.34);
+  }
+  if(this.screenFadeState&&this.screenFade){
+   const f=this.screenFadeState;
+   const p=clamp((t-f.start)/f.duration,0,1);
+   this.screenFade.material.opacity=f.phase==='in'?p:1-p;
+   if(p>=1){if(f.phase==='in')this.screenFadeState=null;else{this.screenFadeState=null;this.screenFade.material.opacity=0;}}
+  }
+ }
  updateOverlay(){if(!this.overlay||this.overlay.style.display==='none')return;
   const x=this.profile.screenWidth/2,y=this.profile.screenHeight/2,cy=6.65;
   const screenCorners=[[-x,cy+y,-3.92],[x,cy+y,-3.92],[x,cy-y,-3.92],[-x,cy-y,-3.92]];
@@ -297,14 +479,13 @@ export class TheaterThree{
   const look=this.currentTarget.clone();const dist=look.distanceTo(this.camera.position);
   look.x+=Math.sin(this.yaw)*dist*.28;look.y+=Math.sin(this.pitch)*dist*.25;
   this.camera.fov=this.fov;this.camera.updateProjectionMatrix();this.camera.lookAt(look);
-  // Motion is deliberately restrained: an approximate screen-color bounce
-  // while a trailer runs. Cross-origin YouTube frames cannot be sampled.
-  if(this.screenSpill) this.screenSpill.intensity=this.screenSpillBase*
-      (this.trailerActive ? (1+.10*Math.sin(t*.0013)+.07*Math.sin(t*.0031)) : 1);
+  this.animateLightRig(t);
   if(document.visibilityState!=='hidden'){this.renderer.render(this.scene,this.camera);this.updateOverlay();}
   this.raf=requestAnimationFrame(this.frame);
  }
- dispose(){this.disposed=true;cancelAnimationFrame(this.raf);clearTimeout(this.timer);clearTimeout(this.videoTimer);clearTimeout(this.videoRevealTimer);clearTimeout(this.infoTimeout);this.videoIframe=null;
+ dispose(){this.disposed=true;cancelAnimationFrame(this.raf);clearTimeout(this.timer);clearTimeout(this.videoTimer);clearTimeout(this.videoRevealTimer);clearTimeout(this.infoTimeout);clearTimeout(this.localVideoRevealTimer);this.videoIframe=null;clearTimeout(this.videoLoadTimeout);
+  if(this.trailerLocalVideo){this.trailerLocalVideo.pause();this.trailerLocalVideo.removeAttribute('src');this.trailerLocalVideo.load();this.trailerLocalVideo=null;}
+  this.videoTexture?.dispose();this.videoTexture=null;
   this.overlay?.remove();this.info?.remove();window.removeEventListener('resize',this.onResize);
   this.canvas.removeEventListener('pointerdown',this.down);this.canvas.removeEventListener('pointermove',this.move);this.canvas.removeEventListener('pointerup',this.up);this.canvas.removeEventListener('pointercancel',this.up);this.canvas.removeEventListener('wheel',this.wheel);
   grainTexture?.dispose?.();grainTexture=null;const geometries=new Set(),materials=new Set(),textures=new Set();this.scene.traverse(obj=>{if(obj.geometry)geometries.add(obj.geometry);if(obj.material)for(const m of (Array.isArray(obj.material)?obj.material:[obj.material])){materials.add(m);if(m.map)textures.add(m.map);}});for(const g of geometries)g.dispose();for(const t of textures)t.dispose();for(const m of materials)m.dispose();this.renderer.dispose();
