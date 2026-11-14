@@ -163,3 +163,20 @@ html[data-fox-route="theater"] .theater-page .seat-view-label{animation:fox-cine
 [dir=rtl] .fox-word-clip{direction:rtl}
 @media (max-width:720px){.offer-card .content{max-width:100%;padding:24px}.offer-card{min-height:230px}[dir=rtl] .page-heading{font-size:45px}}
 @media (prefers-reduced-motion:reduce){.cinema-reveal,.fox-word-inner,.poster-wrap img.poster-official{opacity:1!important;transform:none!important;filter:none!important;clip-path:none!important;animation:none!important;transition:none!important}}
+
+/* V7 — Theater screen projection and data source transparency */
+.theater-screen-video{position:absolute;left:0;top:0;width:1280px;height:520px;z-index:2;overflow:hidden;transform-origin:0 0;pointer-events:auto;isolation:isolate;background:#050506;box-shadow:0 0 28px #dbe4ff15}
+.theater-screen-video iframe{border:0;width:100%;height:100%;display:block;position:absolute;inset:0;background:#000}
+.theater-screen-video .theater-video-black{position:absolute;inset:0;z-index:4;background:#000;opacity:1;transition:opacity .8s ease;pointer-events:none}
+.theater-screen-video .theater-video-black.fade-out{opacity:0}
+.theater-screen-video.theater-video-enter{animation:theater-screen-enter .55s both}
+@keyframes theater-screen-enter{from{opacity:0}to{opacity:1}}
+.trailer-note{position:absolute;left:50%;top:14%;transform:translateX(-50%);z-index:4;font-size:12px;color:#e8e2e6;background:#141417bd;border:1px solid #ffffff35;border-radius:18px;padding:7px 14px;backdrop-filter:blur(9px)}
+.trailer-embed{aspect-ratio:16/9;width:100%;background:#050506;border-radius:13px;overflow:hidden}
+.trailer-embed iframe{width:100%;height:100%;border:0}
+.tmdb-data-note{font-size:12px;color:#99939d;line-height:1.6;margin:12px 0 28px}
+.tmdb-data-note a{color:#f49bc7;text-decoration:underline}
+.filters-wide .seg{flex-wrap:wrap;max-width:100%;border-radius:20px}
+.filters-wide .seg button{font-size:11px;padding:10px 14px}
+@media(max-width:720px){.theater-loading{max-width:85vw}.trailer-note{top:16%;font-size:10px;white-space:normal}.filters-wide .seg{gap:2px}}
+@media(prefers-reduced-motion:reduce){.theater-screen-video.theater-video-enter{animation:none}.theater-screen-video .theater-video-black{transition:none}}

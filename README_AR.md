@@ -1,3 +1,7 @@
+# FOX CINEMA V7
+
+راجع [V7_RELEASE_AR.md](./V7_RELEASE_AR.md) لمعرفة تشغيل Three.js وتفعيل التحديث التلقائي من TMDb.
+
 # FOX CINEMA V6 — النسخة التجريبية المحدثة
 
 **تاريخ التحديث:** 14 نوفمبر 2026

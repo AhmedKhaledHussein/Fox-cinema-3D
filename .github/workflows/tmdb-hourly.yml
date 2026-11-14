@@ -1,0 +1,41 @@
+name: Hourly TMDb catalogue update
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: tmdb-catalogue
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Sync movie and TV catalogue (requires TMDb secret)
+        env:
+          TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$TMDB_READ_ACCESS_TOKEN" ]; then
+            echo 'TMDB_READ_ACCESS_TOKEN is not configured; retaining existing demo catalogue.'
+            exit 0
+          fi
+          node scripts/refresh-tmdb.mjs
+      - name: Commit updated catalogue if changed
+        run: |
+          if ! git diff --quiet -- public/data/entertainment.json; then
+            git config user.name 'fox-cinema-catalog-bot'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add public/data/entertainment.json
+            git commit -m 'data: refresh TMDb movie and TV snapshot [skip ci]'
+            git push origin HEAD:main
+          else
+            echo 'Catalogue unchanged or not configured.'
+          fi

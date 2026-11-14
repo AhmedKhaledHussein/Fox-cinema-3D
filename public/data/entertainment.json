@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "source": "TMDb",
+  "generatedAt": null,
+  "region": "EG",
+  "disclaimer": "Configure the TMDB_READ_ACCESS_TOKEN GitHub Actions secret to enable hourly TMDb discovery updates. This placeholder is not live data or official showtimes.",
+  "count": 0,
+  "titles": []
+}
