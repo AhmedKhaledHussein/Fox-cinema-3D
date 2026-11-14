@@ -313,9 +313,9 @@ async function refreshPublicCatalogue(){
   const hour=Math.floor(Date.now()/3600000);
   const r=await fetch(`/data/entertainment.json?h=${hour}`,{cache:'no-store'});
   if(!r.ok)throw Error(`HTTP ${r.status}`);
-  const snapshot=await r.json();const res=mergeCatalogue(movies,snapshot);
+  const snapshot=await r.json();const lastUpdate=state.catalogueUpdated;const res=mergeCatalogue(movies,snapshot);
   state.catalogueUpdated=res.generatedAt;state.catalogueCount=snapshot.count||res.added;
-  if((router()==='movies'||router().startsWith('movie/'))&&res.added)render();
+  if((router()==='movies'||router().startsWith('movie/'))&&(res.added||res.updated||(res.generatedAt&&res.generatedAt!==lastUpdate)))render();
  }catch(e){console.info('TMDb snapshot not yet available; curated demo catalogue retained.',e.message);}
 }
 refreshPublicCatalogue();const catalogueClock=setInterval(refreshPublicCatalogue,3600000);catalogueClock.unref?.();
